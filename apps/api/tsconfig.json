@@ -1,0 +1,10 @@
+{
+  "extends": "@billsplit/config/tsconfig.node.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}
