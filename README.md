@@ -1,5 +1,7 @@
 # BillSplit
 
+[![CI](https://github.com/BhavyaPatel19/billsplit/actions/workflows/ci.yml/badge.svg)](https://github.com/BhavyaPatel19/billsplit/actions/workflows/ci.yml)
+
 Split bills with friends and roommates: photograph a receipt, let the app read the items, tap who had what (down to "one bite" of the fries), and settle up.
 
 > Status: Sprint 0 — scaffold. The live URL, receipt OCR, and splitting features land step by step; see the roadmap below.
