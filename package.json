@@ -1,0 +1,41 @@
+{
+  "name": "billsplit",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Split bills with friends and roommates: photograph a receipt, tap who had what, settle up.",
+  "license": "MIT",
+  "author": "Bhavya Patel <bhavyampatel19@gmail.com>",
+  "repository": "github:BhavyaPatel19/billsplit",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=12"
+  },
+  "packageManager": "pnpm@12.3.4",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "check": "turbo run lint typecheck test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.14.0",
+    "eslint-config-next": "16.4.5",
+    "husky": "9.1.7",
+    "lint-staged": "17.6.0",
+    "prettier": "3.9.10",
+    "turbo": "2.11.10",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.1"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": "eslint --fix",
+    "*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml}": "prettier --write"
+  },
+  "type": "module"
+}
