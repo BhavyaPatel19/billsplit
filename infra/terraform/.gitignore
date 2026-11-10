@@ -1,0 +1,13 @@
+# Terraform working files (both root modules)
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/crash.log
+**/crash.*.log
+**/*.tfplan
+
+# Real partial backend config and variable values (account-specific, never committed)
+backend.hcl
+**/*.tfvars
+!**/*.tfvars.example
+**/*.auto.tfvars.json

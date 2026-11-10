@@ -1,0 +1,32 @@
+{
+  "name": "@billsplit/split-engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pure, I/O-free money math for BillSplit: exact-cents allocation, item-level splits, ledgers and debt simplification.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@billsplit/config": "workspace:*",
+    "@types/node": "26.6.6",
+    "@vitest/coverage-v8": "5.1.0",
+    "fast-check": "4.10.2",
+    "typescript": "5.9.3",
+    "vitest": "5.1.0"
+  }
+}
