@@ -22,20 +22,25 @@ TypeScript monorepo (pnpm + Turborepo): Next.js 16 web app, Hono API with Drizzl
 ```
 apps/api         Hono API (OpenAPI at /docs)
 apps/web         Next.js app
+docker/          Dockerfiles and the local Compose stack
 packages/contracts   Zod schemas shared by web, api and worker
 packages/config  Shared tsconfig presets
 ```
 
 ## Local development
 
-Requires Node 24 and pnpm 12 (`corepack enable`).
+Requires Node 24, pnpm 12 (`corepack enable`) and Docker.
 
 ```bash
 pnpm install
 pnpm --filter @billsplit/contracts build
-pnpm dev            # api on :4000, web on :3000
+pnpm docker:up      # postgres, valkey, S3-compatible storage (RustFS), mailpit
+pnpm dev            # api on :4000 (docs at /docs), web on :3000
 pnpm check          # lint + typecheck + tests
+pnpm docker:app     # build and run the production images locally
 ```
+
+Consoles: S3 at http://localhost:9001, mail at http://localhost:8025.
 
 ## Roadmap
 

@@ -20,7 +20,11 @@
     "check": "turbo run lint typecheck test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "docker:up": "test -f .env || cp .env.example .env; docker compose -f docker/compose.yml --env-file .env up -d",
+    "docker:down": "docker compose -f docker/compose.yml --env-file .env down",
+    "docker:app": "test -f .env || cp .env.example .env; docker compose -f docker/compose.yml --env-file .env --profile app up -d --build",
+    "docker:logs": "docker compose -f docker/compose.yml --env-file .env logs -f"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
