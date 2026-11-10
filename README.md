@@ -28,6 +28,7 @@ docker/          Dockerfiles, local Compose stack, production Compose + Caddyfil
 infra/terraform  AWS infrastructure (bootstrap + main module)
 packages/split-engine  Exact-cents money math: splits, allocation, ledger, debt simplification
 packages/contracts   Zod schemas shared by web, api and worker
+packages/db      Drizzle schema, SQL migrations, migrator
 packages/config  Shared tsconfig presets
 ```
 
@@ -45,6 +46,9 @@ pnpm docker:app     # build and run the production images locally
 ```
 
 Consoles: S3 at http://localhost:9001, mail at http://localhost:8025.
+
+Database tests start Postgres with Testcontainers. On Colima, point it at the socket first:
+`export DOCKER_HOST=unix://$HOME/.colima/default/docker.sock TESTCONTAINERS_RYUK_DISABLED=true`.
 
 ## Deployment
 
