@@ -1,0 +1,129 @@
+# Production stack on the EC2 host. Placed in /opt/billsplit by the deploy workflow together
+# with Caddyfile and .env (rendered from SSM Parameter Store). All traffic enters through Caddy,
+# which serves the web app at / and the API at /api/* on the same origin.
+name: billsplit
+
+x-logging: &awslogs
+  driver: awslogs
+  options:
+    awslogs-region: ${AWS_REGION}
+    awslogs-create-group: "false"
+    awslogs-stream: ${IMAGE_TAG:-latest}
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      APP_HOST: ${APP_HOST}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+      - api
+    logging:
+      <<: *awslogs
+      options:
+        awslogs-region: ${AWS_REGION}
+        awslogs-group: /billsplit/caddy
+        awslogs-stream: ${IMAGE_TAG:-latest}
+
+  web:
+    image: ${ECR_REGISTRY}/billsplit/web:${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:4000
+      APP_VERSION: ${IMAGE_TAG}
+    depends_on:
+      api:
+        condition: service_healthy
+    logging:
+      <<: *awslogs
+      options:
+        awslogs-region: ${AWS_REGION}
+        awslogs-group: /billsplit/web
+        awslogs-stream: ${IMAGE_TAG:-latest}
+
+  api:
+    image: ${ECR_REGISTRY}/billsplit/api:${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      APP_VERSION: ${IMAGE_TAG}
+      APP_URL: ${APP_URL}
+      CORS_ORIGINS: ${APP_URL}
+      DATABASE_URL: postgresql://billsplit:${POSTGRES_PASSWORD}@postgres:5432/billsplit
+      REDIS_URL: redis://valkey:6379
+      AWS_REGION: ${AWS_REGION}
+      RECEIPTS_BUCKET: ${RECEIPTS_BUCKET}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      EMAIL_FROM: ${EMAIL_FROM}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    logging:
+      <<: *awslogs
+      options:
+        awslogs-region: ${AWS_REGION}
+        awslogs-group: /billsplit/api
+        awslogs-stream: ${IMAGE_TAG:-latest}
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: billsplit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: billsplit
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billsplit -d billsplit"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      <<: *awslogs
+      options:
+        awslogs-region: ${AWS_REGION}
+        awslogs-group: /billsplit/postgres
+        awslogs-stream: ${IMAGE_TAG:-latest}
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command:
+      [
+        "valkey-server",
+        "--save",
+        "",
+        "--appendonly",
+        "no",
+        "--maxmemory",
+        "128mb",
+        "--maxmemory-policy",
+        "allkeys-lru",
+      ]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

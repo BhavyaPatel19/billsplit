@@ -1,0 +1,44 @@
+#!/bin/bash
+# cloud-init for the BillSplit host (Amazon Linux 2023, arm64). Runs once at first boot.
+# Installs Docker + Compose and prepares ${app_dir}; the deploy workflow does the rest.
+set -euxo pipefail
+
+dnf update -y
+dnf install -y docker
+
+# Docker Compose v2 plugin (not in the AL2023 repos), pinned.
+COMPOSE_VERSION="${compose_version}"
+PLUGIN_DIR=/usr/local/lib/docker/cli-plugins
+mkdir -p "$PLUGIN_DIR"
+curl -fsSL "https://github.com/docker/compose/releases/download/v$${COMPOSE_VERSION}/docker-compose-linux-aarch64" \
+  -o "$PLUGIN_DIR/docker-compose"
+chmod +x "$PLUGIN_DIR/docker-compose"
+
+# Rotate container logs locally; the awslogs driver is set per service in compose.prod.yml.
+cat > /etc/docker/daemon.json <<'JSON'
+{
+  "log-driver": "json-file",
+  "log-opts": { "max-size": "10m", "max-file": "3" },
+  "live-restore": true
+}
+JSON
+
+systemctl enable --now docker
+usermod -aG docker ec2-user
+
+# SSM agent ships with AL2023; make sure it is running so Run Command / Session Manager work.
+systemctl enable --now amazon-ssm-agent
+
+mkdir -p "${app_dir}"
+chown ec2-user:ec2-user "${app_dir}"
+cat > "${app_dir}/README.txt" <<TXT
+BillSplit host. Managed by Terraform (infra/terraform) and deployed by GitHub Actions.
+Region: ${region}
+The deploy workflow places compose.prod.yml, Caddyfile and .env here and runs
+  docker compose pull && docker compose up -d --wait
+Shell access: aws ssm start-session --target <instance-id>
+TXT
+
+docker --version
+docker compose version
+echo "billsplit host bootstrap complete"

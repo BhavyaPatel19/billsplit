@@ -1,0 +1,173 @@
+name: Deploy
+
+# Runs after CI succeeds on main, or by hand (optionally with an older image tag to roll back).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (git SHA). Leave empty to build and deploy the current commit."
+        required: false
+        default: ""
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # OIDC token for assuming the AWS deploy role
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REGISTRY: ${{ vars.AWS_ECR_REGISTRY }}
+  IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || github.sha }}
+
+jobs:
+  build-push:
+    name: Build and push arm64 images
+    # Skip when CI failed, and skip the build when rolling back to an existing tag.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.image_tag == '') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        app: [api, web]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/${{ matrix.app }}.Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/billsplit/${{ matrix.app }}:${{ env.IMAGE_TAG }}
+            ${{ steps.ecr.outputs.registry }}/billsplit/${{ matrix.app }}:latest
+          build-args: |
+            APP_VERSION=${{ env.IMAGE_TAG }}
+            NEXT_PUBLIC_API_URL=https://${{ vars.APP_HOST }}/api
+          cache-from: type=gha,scope=${{ matrix.app }}-arm64
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}-arm64
+
+  deploy:
+    name: Deploy to host
+    needs: [build-push]
+    # Run when the build succeeded, or when it was skipped on purpose for a rollback.
+    if: >-
+      always() &&
+      (needs.build-push.result == 'success' ||
+       (needs.build-push.result == 'skipped' && github.event_name == 'workflow_dispatch' && inputs.image_tag != ''))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://${{ vars.APP_HOST }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Render .env from SSM Parameter Store
+        run: |
+          set -euo pipefail
+          {
+            echo "IMAGE_TAG=${IMAGE_TAG}"
+            echo "ECR_REGISTRY=${ECR_REGISTRY}"
+            echo "APP_HOST=${{ vars.APP_HOST }}"
+            aws ssm get-parameters-by-path --path /billsplit/prod --with-decryption \
+              --query 'Parameters[].[Name,Value]' --output text |
+              while IFS=$'\t' read -r name value; do
+                echo "${name##*/}=${value}"
+              done
+          } > deploy.env
+          if grep -q '=CHANGE_ME$' deploy.env; then
+            echo "::warning::Some SSM parameters still have placeholder values:"
+            grep '=CHANGE_ME$' deploy.env | cut -d= -f1
+          fi
+
+      - name: Run deploy script on the host via SSM
+        env:
+          INSTANCE_ID: ${{ vars.AWS_INSTANCE_ID }}
+        run: |
+          set -euo pipefail
+          COMPOSE_B64=$(base64 -w0 docker/compose.prod.yml)
+          CADDY_B64=$(base64 -w0 docker/Caddyfile)
+          ENV_B64=$(base64 -w0 deploy.env)
+          rm -f deploy.env
+
+          cat > script.sh <<EOF
+          set -euo pipefail
+          install -d -m 755 /opt/billsplit
+          echo '${COMPOSE_B64}' | base64 -d > /opt/billsplit/compose.prod.yml
+          echo '${CADDY_B64}'   | base64 -d > /opt/billsplit/Caddyfile
+          umask 077 && echo '${ENV_B64}' | base64 -d > /opt/billsplit/.env
+          cd /opt/billsplit
+          aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+          docker compose -f compose.prod.yml --env-file .env pull --quiet
+          docker compose -f compose.prod.yml --env-file .env up -d --wait --remove-orphans
+          docker image prune -f >/dev/null
+          docker compose -f compose.prod.yml --env-file .env ps
+          EOF
+
+          jq -n --rawfile s script.sh '{commands: ($s | split("\n"))}' > params.json
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "billsplit deploy ${IMAGE_TAG}" \
+            --timeout-seconds 600 \
+            --parameters file://params.json \
+            --query 'Command.CommandId' --output text)
+          echo "SSM command: $CMD_ID"
+
+          for _ in $(seq 1 60); do
+            STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in
+              Success) break ;;
+              Failed|Cancelled|TimedOut) break ;;
+              *) sleep 10 ;;
+            esac
+          done
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query '[Status, StandardOutputContent, StandardErrorContent]' --output text
+          [ "$STATUS" = "Success" ]
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          URL="https://${{ vars.APP_HOST }}/api/healthz"
+          for _ in $(seq 1 24); do
+            if BODY=$(curl -sf --max-time 10 "$URL"); then
+              echo "$BODY"
+              echo "$BODY" | grep -q "\"version\":\"${IMAGE_TAG}\"" && exit 0
+              echo "healthz is up but reports a different version; retrying"
+            fi
+            sleep 10
+          done
+          echo "::error::${URL} did not report version ${IMAGE_TAG} within 4 minutes"
+          exit 1

@@ -1,0 +1,3 @@
+# Copy to backend.hcl and fill in from `terraform output backend_hcl` in ./bootstrap.
+bucket = "billsplit-tfstate-123456789012"
+region = "us-west-2"

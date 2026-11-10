@@ -24,7 +24,9 @@ TypeScript monorepo (pnpm + Turborepo): Next.js 16 web app, Hono API with Drizzl
 ```
 apps/api         Hono API (OpenAPI at /docs)
 apps/web         Next.js app
-docker/          Dockerfiles and the local Compose stack
+docker/          Dockerfiles, local Compose stack, production Compose + Caddyfile
+infra/terraform  AWS infrastructure (bootstrap + main module)
+packages/split-engine  Exact-cents money math: splits, allocation, ledger, debt simplification
 packages/contracts   Zod schemas shared by web, api and worker
 packages/config  Shared tsconfig presets
 ```
@@ -43,6 +45,10 @@ pnpm docker:app     # build and run the production images locally
 ```
 
 Consoles: S3 at http://localhost:9001, mail at http://localhost:8025.
+
+## Deployment
+
+AWS, fully in Terraform: one ARM EC2 host running the Compose stack behind Caddy (automatic HTTPS), S3 for receipts and backups, ECR, SSM Parameter Store for secrets, CloudWatch alarms and a budget. GitHub Actions deploys over an OIDC role through SSM Run Command, so there are no AWS keys in GitHub and no SSH port on the host. About $20/month. Step by step: [infra/README.md](infra/README.md).
 
 ## Roadmap
 

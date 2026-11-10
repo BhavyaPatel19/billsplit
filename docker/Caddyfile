@@ -1,0 +1,34 @@
+# Reverse proxy and automatic TLS for the production host. APP_HOST comes from .env.
+{
+  email admin@{$APP_HOST}
+  servers {
+    trusted_proxies static private_ranges
+  }
+}
+
+{$APP_HOST} {
+  encode zstd gzip
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "camera=(self), geolocation=(), microphone=()"
+    -Server
+  }
+
+  # API on the same origin, prefix stripped: /api/healthz -> api:4000/healthz
+  handle_path /api/* {
+    reverse_proxy api:4000
+  }
+
+  handle {
+    reverse_proxy web:3000
+  }
+
+  log {
+    output stdout
+    format json
+  }
+}

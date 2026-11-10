@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars (gitignored) and edit.
+aws_region  = "us-west-2"
+alert_email = "you@example.com"
+email_from  = "BillSplit <no-reply@example.com>"
+
+# Optional custom domain. Leave empty to use https://<elastic-ip>.sslip.io.
+domain_name         = ""
+create_route53_zone = false
+
+instance_type      = "t4g.small"
+monthly_budget_usd = 25
