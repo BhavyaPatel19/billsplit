@@ -12,11 +12,13 @@ FROM base AS build
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/config/package.json packages/config/
 COPY packages/contracts/package.json packages/contracts/
+COPY packages/db/package.json packages/db/
 COPY apps/api/package.json apps/api/
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter @billsplit/api...
 COPY packages/config packages/config
 COPY packages/contracts packages/contracts
+COPY packages/db packages/db
 COPY apps/api apps/api
 RUN pnpm --filter @billsplit/api... build
 # Pruned production bundle (runtime deps only, workspace deps copied in).
@@ -31,5 +33,5 @@ COPY --from=build --chown=node:node /out ./
 USER node
 EXPOSE 4000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/api/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "dist/server.js"]

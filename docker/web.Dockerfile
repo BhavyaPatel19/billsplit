@@ -9,8 +9,10 @@ WORKDIR /repo
 
 # ---- install + build ---------------------------------------------------------
 FROM base AS build
+# API_URL is compiled into the /api rewrite (only used when no reverse proxy fronts the app).
+ARG API_URL=http://localhost:4000
 ARG NEXT_PUBLIC_API_URL=http://localhost:4000
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV API_URL=${API_URL} NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/config/package.json packages/config/
 COPY packages/contracts/package.json packages/contracts/

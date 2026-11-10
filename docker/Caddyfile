@@ -18,8 +18,8 @@
     -Server
   }
 
-  # API on the same origin, prefix stripped: /api/healthz -> api:4000/healthz
-  handle_path /api/* {
+  # API on the same origin, prefix kept: /api/* -> api:4000/api/*
+  handle /api/* {
     reverse_proxy api:4000
   }
 

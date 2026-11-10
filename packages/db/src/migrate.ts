@@ -19,23 +19,3 @@ export async function runMigrations(connectionString: string): Promise<void> {
     await handle.close();
   }
 }
-
-// CLI entry: `node dist/migrate.js` (production) or `pnpm --filter @billsplit/db migrate` (dev).
-const invokedDirectly =
-  process.argv[1] !== undefined && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-
-if (invokedDirectly) {
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    console.error("DATABASE_URL is not set");
-    process.exit(2);
-  }
-  runMigrations(url)
-    .then(() => {
-      console.log("migrations applied");
-    })
-    .catch((err: unknown) => {
-      console.error("migration failed", err);
-      process.exit(1);
-    });
-}

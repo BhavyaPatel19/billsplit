@@ -1,25 +1,33 @@
+import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { HTTPException } from "hono/http-exception";
 import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
 import { openAPIRouteHandler } from "hono-openapi";
 import { Scalar } from "@scalar/hono-api-reference";
+import type { Db } from "@billsplit/db";
+import type { ReadinessCheck } from "@billsplit/contracts";
+import type { Auth } from "./auth.js";
 import type { Env } from "./env.js";
 import type { Logger } from "./logger.js";
+import { sessionMiddleware, type SessionVariables } from "./middleware/session.js";
 import { healthRoutes } from "./routes/health.js";
+import { meRoutes } from "./routes/me.js";
 
 export interface AppDeps {
   env: Env;
   logger: Logger;
+  db: Db;
+  auth: Auth;
   startedAt?: Date;
 }
 
-export type AppVariables = {
-  requestId: string;
-};
+export type AppVariables = SessionVariables;
 
-export function createApp({ env, logger, startedAt = new Date() }: AppDeps) {
-  const app = new Hono<{ Variables: AppVariables }>();
+export function createApp({ env, logger, db, auth, startedAt = new Date() }: AppDeps) {
+  // Everything lives under /api so the reverse proxy and Next.js rewrites forward the prefix as-is.
+  const app = new Hono<{ Variables: AppVariables }>().basePath("/api");
 
   app.use(requestId());
   app.use(secureHeaders());
@@ -46,7 +54,22 @@ export function createApp({ env, logger, startedAt = new Date() }: AppDeps) {
     );
   });
 
-  app.route("/", healthRoutes({ env, startedAt }));
+  const dbProbe = async (): Promise<ReadinessCheck> => {
+    const start = performance.now();
+    try {
+      await db.execute(sql`select 1`);
+      return { name: "postgres", ok: true, latencyMs: Math.round(performance.now() - start) };
+    } catch (err) {
+      return { name: "postgres", ok: false, error: err instanceof Error ? err.message : "failed" };
+    }
+  };
+  app.route("/", healthRoutes({ env, startedAt, probes: [dbProbe] }));
+
+  // Better Auth owns everything under /api/auth (sign-up, sign-in, verification, OAuth callbacks).
+  app.on(["GET", "POST"], "/auth/*", (c) => auth.handler(c.req.raw));
+
+  app.use("*", sessionMiddleware(auth));
+  app.route("/", meRoutes());
 
   app.get(
     "/openapi.json",
@@ -65,6 +88,9 @@ export function createApp({ env, logger, startedAt = new Date() }: AppDeps) {
 
   app.notFound((c) => c.json({ error: "not_found", requestId: c.get("requestId") }, 404));
   app.onError((err, c) => {
+    if (err instanceof HTTPException) {
+      return c.json({ error: err.message, requestId: c.get("requestId") }, err.status);
+    }
     logger.error({ err, requestId: c.get("requestId") }, "unhandled error");
     return c.json({ error: "internal_error", requestId: c.get("requestId") }, 500);
   });

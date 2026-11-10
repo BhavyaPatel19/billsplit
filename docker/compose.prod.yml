@@ -10,6 +10,22 @@ x-logging: &awslogs
     awslogs-create-group: "false"
     awslogs-stream: ${IMAGE_TAG:-latest}
 
+x-api-env: &api-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  APP_VERSION: ${IMAGE_TAG}
+  APP_URL: ${APP_URL}
+  DATABASE_URL: postgresql://billsplit:${POSTGRES_PASSWORD}@postgres:5432/billsplit
+  REDIS_URL: redis://valkey:6379
+  AWS_REGION: ${AWS_REGION}
+  RECEIPTS_BUCKET: ${RECEIPTS_BUCKET}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+  EMAIL_TRANSPORT: ses
+  EMAIL_FROM: ${EMAIL_FROM}
+
 services:
   caddy:
     image: caddy:2-alpine
@@ -50,28 +66,31 @@ services:
         awslogs-group: /billsplit/web
         awslogs-stream: ${IMAGE_TAG:-latest}
 
+  # One-shot: applies pending SQL migrations before the API starts.
+  migrate:
+    image: ${ECR_REGISTRY}/billsplit/api:${IMAGE_TAG}
+    command: ["node", "node_modules/@billsplit/db/dist/cli.js"]
+    environment:
+      DATABASE_URL: postgresql://billsplit:${POSTGRES_PASSWORD}@postgres:5432/billsplit
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      <<: *awslogs
+      options:
+        awslogs-region: ${AWS_REGION}
+        awslogs-group: /billsplit/api
+        awslogs-stream: migrate-${IMAGE_TAG:-latest}
+
   api:
     image: ${ECR_REGISTRY}/billsplit/api:${IMAGE_TAG}
     restart: unless-stopped
     environment:
-      NODE_ENV: production
+      <<: *api-env
       PORT: 4000
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      APP_VERSION: ${IMAGE_TAG}
-      APP_URL: ${APP_URL}
-      CORS_ORIGINS: ${APP_URL}
-      DATABASE_URL: postgresql://billsplit:${POSTGRES_PASSWORD}@postgres:5432/billsplit
-      REDIS_URL: redis://valkey:6379
-      AWS_REGION: ${AWS_REGION}
-      RECEIPTS_BUCKET: ${RECEIPTS_BUCKET}
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      EMAIL_FROM: ${EMAIL_FROM}
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       valkey:
         condition: service_healthy
     logging:

@@ -1,6 +1,6 @@
 # Local development stack.
-#   pnpm docker:up    -> infrastructure only (postgres, valkey, minio, mailpit); run apps with `pnpm dev`
-#   pnpm docker:app   -> also build and run the production api + web images
+#   pnpm docker:up    -> infrastructure only (postgres, valkey, S3, mailpit); run apps with `pnpm dev`
+#   pnpm docker:app   -> also build and run the production api + web images (with migrations)
 name: billsplit
 
 services:
@@ -74,25 +74,45 @@ services:
       - "${MAILPIT_UI_PORT:-8025}:8025"
       - "${MAILPIT_SMTP_PORT:-1025}:1025"
 
-  api:
+  # ---- production images, only with `--profile app` ----------------------------------------
+
+  migrate:
     profiles: ["app"]
     build:
       context: ..
       dockerfile: docker/api.Dockerfile
       args:
         APP_VERSION: ${APP_VERSION:-local}
+    image: billsplit-api:${APP_VERSION:-local}
+    command: ["node", "node_modules/@billsplit/db/dist/cli.js"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-billsplit}:${POSTGRES_PASSWORD:-billsplit}@postgres:5432/${POSTGRES_DB:-billsplit}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    profiles: ["app"]
+    image: billsplit-api:${APP_VERSION:-local}
     environment:
       NODE_ENV: production
       PORT: 4000
       LOG_LEVEL: info
-      CORS_ORIGINS: http://localhost:3000
+      APP_URL: http://localhost:3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-billsplit}:${POSTGRES_PASSWORD:-billsplit}@postgres:5432/${POSTGRES_DB:-billsplit}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-local-dev-secret-local-dev-secret-local-dev}
+      EMAIL_TRANSPORT: smtp
+      SMTP_URL: smtp://mailpit:1025
+      EMAIL_FROM: BillSplit <no-reply@localhost>
     ports:
       - "4000:4000"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       valkey:
         condition: service_healthy
+      mailpit:
+        condition: service_started
 
   web:
     profiles: ["app"]
@@ -101,13 +121,14 @@ services:
       dockerfile: docker/web.Dockerfile
       args:
         APP_VERSION: ${APP_VERSION:-local}
-        NEXT_PUBLIC_API_URL: http://localhost:4000
+        API_URL: http://api:4000
     environment:
       API_URL: http://api:4000
     ports:
       - "3000:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   postgres-data:

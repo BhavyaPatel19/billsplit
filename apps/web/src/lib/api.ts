@@ -9,7 +9,7 @@ export type ApiHealth = { ok: true; data: HealthResponse } | { ok: false; error:
 
 export async function fetchApiHealth(): Promise<ApiHealth> {
   try {
-    const res = await fetch(`${serverApiUrl()}/healthz`, { cache: "no-store" });
+    const res = await fetch(`${serverApiUrl()}/api/healthz`, { cache: "no-store" });
     if (!res.ok) return { ok: false, error: `API responded ${res.status}` };
     const data = HealthResponseSchema.parse(await res.json());
     return { ok: true, data };
