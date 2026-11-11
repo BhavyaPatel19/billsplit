@@ -21,7 +21,7 @@ variable "email_from" {
 }
 
 variable "domain_name" {
-  description = "Custom domain for the app (e.g. billsplit.example.com). Empty means https://<elastic-ip>.sslip.io."
+  description = "Hostname for the app, e.g. billsplit.duckdns.org (free) or your own domain. Empty means https://<elastic-ip>.sslip.io."
   type        = string
   default     = ""
 }

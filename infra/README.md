@@ -4,16 +4,24 @@ Everything BillSplit needs on AWS, as Terraform. One ARM EC2 host runs the Docke
 
 ## Monthly cost (us-west-2, on demand)
 
-| Item                                   |     USD |
-| -------------------------------------- | ------: |
-| EC2 t4g.small (2 vCPU, 2 GB)           |  ~12.30 |
-| 30 GB gp3 root volume                  |   ~2.40 |
-| Elastic IP (attached, in use)          |   ~3.60 |
-| S3, ECR, CloudWatch Logs, SSM, SNS     |     < 2 |
-| Route53 hosted zone (only with domain) |    0.50 |
-| **Total**                              | **~20** |
+| Item                               |     USD |
+| ---------------------------------- | ------: |
+| EC2 t4g.small (2 vCPU, 2 GB)       |  ~12.30 |
+| 30 GB gp3 root volume              |   ~2.40 |
+| Elastic IP (attached, in use)      |   ~3.60 |
+| S3, ECR, CloudWatch Logs, SSM, SNS |     < 2 |
+| **Total**                          | **~20** |
 
 Plus Claude usage for receipt OCR (about $0.02 per receipt) and a domain if you buy one (~$10/year). The budget alarm defaults to $25.
+
+## Hostname without buying a domain
+
+Two free options, both with real Let's Encrypt HTTPS from Caddy:
+
+- **sslip.io (zero setup, the default):** leave `domain_name` empty. The app is served at `https://<elastic-ip>.sslip.io`. The Elastic IP never changes, so the link is stable.
+- **DuckDNS (readable name):** sign in at duckdns.org with GitHub or Google, claim a subdomain such as `billsplit`, and set its IP to the `public_ip` output. Then set `domain_name = "billsplit.duckdns.org"` and `create_route53_zone = false` and run `terraform apply` again so S3 CORS and the app URL pick it up.
+
+Without your own domain, SES can only send from a single verified email address (for example your Gmail). That works for a demo, though some messages may land in spam.
 
 ## Prerequisites
 
