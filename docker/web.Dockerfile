@@ -16,11 +16,13 @@ ENV API_URL=${API_URL} NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/config/package.json packages/config/
 COPY packages/contracts/package.json packages/contracts/
+COPY packages/split-engine/package.json packages/split-engine/
 COPY apps/web/package.json apps/web/
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter @billsplit/web...
 COPY packages/config packages/config
 COPY packages/contracts packages/contracts
+COPY packages/split-engine packages/split-engine
 COPY apps/web apps/web
 RUN pnpm --filter @billsplit/web... build
 

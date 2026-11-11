@@ -112,6 +112,9 @@ importers:
       '@eslint/js':
         specifier: 10.0.1
         version: 10.0.1(eslint@10.14.0(jiti@2.7.0))
+      '@types/node':
+        specifier: 26.6.6
+        version: 26.6.6
       eslint:
         specifier: 10.14.0
         version: 10.14.0(jiti@2.7.0)
@@ -136,6 +139,9 @@ importers:
       typescript-eslint:
         specifier: 8.72.1
         version: 8.72.1(eslint@10.14.0(jiti@2.7.0))(typescript@5.9.3)
+      vitest:
+        specifier: 5.1.0
+        version: 5.1.0(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   apps/api:
     dependencies:
@@ -215,6 +221,9 @@ importers:
       '@billsplit/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@billsplit/split-engine':
+        specifier: workspace:*
+        version: link:../../packages/split-engine
       '@hookform/resolvers':
         specifier: 7.0.1
         version: 7.0.1(@standard-schema/spec@1.1.0)(react-hook-form@7.91.0(@types/react@19.3.0)(react@19.3.1))(zod@4.6.7)
@@ -5836,7 +5845,7 @@ snapshots:
     dependencies:
       '@vitest/istanbul-lib-coverage': 2.1.0
 
-  '@vitest/mocker@5.1.0(vite@8.3.6(@types/node@26.6.6)(jiti@2.7.0))':
+  '@vitest/mocker@5.1.0(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.1.0
@@ -8236,7 +8245,7 @@ snapshots:
   vitest@5.1.0(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.1.0(vite@8.3.6(@types/node@26.6.6)(jiti@2.7.0))
+      '@vitest/mocker': 5.1.0(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
