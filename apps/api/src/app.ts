@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
+import { ApiError } from "./lib/errors.js";
 import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
 import { openAPIRouteHandler } from "hono-openapi";
@@ -13,6 +14,8 @@ import type { Env } from "./env.js";
 import type { Logger } from "./logger.js";
 import { sessionMiddleware, type SessionVariables } from "./middleware/session.js";
 import { healthRoutes } from "./routes/health.js";
+import { groupRoutes } from "./routes/groups.js";
+import { inviteRoutes } from "./routes/invites.js";
 import { meRoutes } from "./routes/me.js";
 import { metaRoutes } from "./routes/meta.js";
 
@@ -72,6 +75,8 @@ export function createApp({ env, logger, db, auth, startedAt = new Date() }: App
 
   app.use("*", sessionMiddleware(auth));
   app.route("/", meRoutes());
+  app.route("/", groupRoutes(db, env));
+  app.route("/", inviteRoutes(db));
 
   app.get(
     "/openapi.json",
@@ -90,6 +95,12 @@ export function createApp({ env, logger, db, auth, startedAt = new Date() }: App
 
   app.notFound((c) => c.json({ error: "not_found", requestId: c.get("requestId") }, 404));
   app.onError((err, c) => {
+    if (err instanceof ApiError) {
+      return c.json(
+        { error: err.message, requestId: c.get("requestId"), details: err.details },
+        err.status,
+      );
+    }
     if (err instanceof HTTPException) {
       return c.json({ error: err.message, requestId: c.get("requestId") }, err.status);
     }
