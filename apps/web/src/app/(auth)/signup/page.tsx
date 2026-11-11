@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { fetchMeta } from "@/lib/api";
 import { SignupForm } from "./signup-form";
@@ -15,7 +16,9 @@ export default async function SignupPage() {
           Free for you and your roommates. We only email you to verify it.
         </CardDescription>
       </div>
-      <SignupForm googleEnabled={meta.features.googleSignIn} />
+      <Suspense>
+        <SignupForm googleEnabled={meta.features.googleSignIn} />
+      </Suspense>
       <p className="text-center text-sm text-zinc-600 dark:text-zinc-400">
         Already have an account?{" "}
         <Link

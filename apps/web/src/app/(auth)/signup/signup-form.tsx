@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -20,6 +20,9 @@ type SignupValues = z.infer<typeof SignupSchema>;
 
 export function SignupForm({ googleEnabled }: { googleEnabled: boolean }) {
   const router = useRouter();
+  const next = useSearchParams().get("next");
+  const callbackURL =
+    next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard?verified=1";
   const [serverError, setServerError] = useState<string | null>(null);
   const {
     register,
@@ -31,7 +34,7 @@ export function SignupForm({ googleEnabled }: { googleEnabled: boolean }) {
     setServerError(null);
     const { error } = await authClient.signUp.email({
       ...values,
-      callbackURL: "/dashboard?verified=1",
+      callbackURL,
     });
     if (error) {
       setServerError(error.message ?? "Could not create the account");

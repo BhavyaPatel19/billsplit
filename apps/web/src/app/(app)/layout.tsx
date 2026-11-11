@@ -16,6 +16,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             BillSplit
           </Link>
           <nav className="flex items-center gap-4 text-sm">
+            <Link href="/dashboard" className="text-zinc-700 hover:underline dark:text-zinc-300">
+              Groups
+            </Link>
             <span className="hidden text-zinc-600 sm:inline dark:text-zinc-400">
               {session.user.name}
             </span>
