@@ -71,6 +71,75 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
 
+  infra:
+    name: Infrastructure (Terraform, Compose, Caddy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.17.1
+
+      - name: terraform fmt
+        run: terraform fmt -recursive -check infra/terraform
+
+      - name: terraform validate (bootstrap + main)
+        run: |
+          for dir in infra/terraform/bootstrap infra/terraform; do
+            terraform -chdir="$dir" init -backend=false -input=false
+            terraform -chdir="$dir" validate
+          done
+
+      - name: Production Compose file is valid
+        run: |
+          IMAGE_TAG=ci ECR_REGISTRY=example.invalid AWS_REGION=us-west-2 APP_HOST=example.com \
+            docker compose -f docker/compose.prod.yml config --quiet
+
+      - name: Caddyfile is valid
+        run: |
+          docker run --rm -v "$PWD/docker/Caddyfile:/etc/caddy/Caddyfile:ro" -e APP_HOST=example.com \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+
+  stack:
+    name: Production images boot end to end
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build and start the stack (postgres, migrations, api, web, mail)
+        run: |
+          cp .env.example .env
+          docker compose -f docker/compose.yml --env-file .env --profile app up -d --build
+
+      - name: Wait for the web app
+        run: |
+          for _ in $(seq 1 60); do
+            curl -sf localhost:3000/ >/dev/null && curl -sf localhost:4000/api/readyz >/dev/null && exit 0
+            sleep 3
+          done
+          docker compose -f docker/compose.yml --env-file .env --profile app ps -a
+          docker compose -f docker/compose.yml --env-file .env --profile app logs --tail 50
+          exit 1
+
+      - name: Smoke test (readiness, sign-up through the web origin, verification email)
+        run: |
+          set -euo pipefail
+          curl -sf localhost:4000/api/readyz | tee /dev/stderr | grep -q '"status":"ready"'
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:3000/api/auth/sign-up/email \
+            -H 'content-type: application/json' -H 'origin: http://localhost:3000' \
+            -d '{"name":"CI","email":"ci@example.com","password":"ci-password-12345"}')
+          test "$code" = 200
+          sleep 2
+          curl -sf localhost:8025/api/v1/messages | grep -q 'Verify your email'
+          echo "stack smoke test passed"
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -f docker/compose.yml --env-file .env --profile app logs --tail 100
+
   security:
     name: Secrets scan and dependency audit
     runs-on: ubuntu-latest

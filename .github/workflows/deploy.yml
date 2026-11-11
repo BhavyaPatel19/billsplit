@@ -30,9 +30,11 @@ jobs:
   build-push:
     name: Build and push arm64 images
     # Skip when CI failed, and skip the build when rolling back to an existing tag.
+    # Skips cleanly until AWS is set up (repository variable AWS_DEPLOY_ROLE_ARN, see infra/README.md).
     if: >-
+      vars.AWS_DEPLOY_ROLE_ARN != '' && (
       (github.event_name == 'workflow_dispatch' && inputs.image_tag == '') ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -76,7 +78,7 @@ jobs:
     needs: [build-push]
     # Run when the build succeeded, or when it was skipped on purpose for a rollback.
     if: >-
-      always() &&
+      always() && vars.AWS_DEPLOY_ROLE_ARN != '' &&
       (needs.build-push.result == 'success' ||
        (needs.build-push.result == 'skipped' && github.event_name == 'workflow_dispatch' && inputs.image_tag != ''))
     runs-on: ubuntu-latest

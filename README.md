@@ -52,7 +52,20 @@ Database tests start Postgres with Testcontainers. On Colima, point it at the so
 
 ## Deployment
 
-AWS, fully in Terraform: one ARM EC2 host running the Compose stack behind Caddy (automatic HTTPS), S3 for receipts and backups, ECR, SSM Parameter Store for secrets, CloudWatch alarms and a budget. GitHub Actions deploys over an OIDC role through SSM Run Command, so there are no AWS keys in GitHub and no SSH port on the host. About $20/month. Step by step: [infra/README.md](infra/README.md).
+BillSplit is built to be deployed to AWS with one `terraform apply` and a push to `main`. It is not running on a public URL right now, by choice, but every piece of the path is in the repo and checked in CI:
+
+- **Infrastructure as code:** [infra/terraform](infra/terraform) creates one ARM EC2 host, S3 buckets for receipts and backups, ECR, SSM Parameter Store secrets, a GitHub OIDC deploy role scoped to `main`, CloudWatch alarms and a monthly budget. There is no SSH port; access is through SSM Session Manager.
+- **Production stack:** [docker/compose.prod.yml](docker/compose.prod.yml) runs Caddy with automatic HTTPS in front of the web app and API, with migrations as a one-shot service.
+- **Continuous delivery:** [deploy.yml](.github/workflows/deploy.yml) builds arm64 images, pushes them to ECR, rolls the host through SSM Run Command and smoke-tests the deployed version. It stays skipped until the AWS deploy role is configured.
+- **Verified on every push:** CI validates the Terraform, the production Compose file and the Caddyfile, then builds the production images, boots the whole stack, runs migrations, signs up a user through the web origin and checks the verification email arrives.
+
+Expected running cost is about $20 a month. Step-by-step setup, secrets and rollback: [infra/README.md](infra/README.md).
+
+To run the production images locally instead:
+
+```bash
+pnpm docker:app   # http://localhost:3000, mail at http://localhost:8025
+```
 
 ## Roadmap
 
