@@ -82,3 +82,41 @@ export function firstUrl(text: string): string {
   if (!match) throw new Error(`no url in: ${text}`);
   return match[0];
 }
+
+/** Sign up, follow the emailed verification link, and return the session cookie. */
+export async function signUpVerified(
+  ctx: TestContext,
+  name: string,
+  email: string,
+): Promise<string> {
+  const res = await jsonRequest(ctx.app, "/api/auth/sign-up/email", {
+    body: { name, email, password: `${name}-passphrase-123` },
+  });
+  if (res.status !== 200) throw new Error(`sign-up failed: ${res.status}`);
+  const url = firstUrl(ctx.mailer.lastTo(email)!.text);
+  const verified = await ctx.app.request(url.replace("http://localhost:3000", ""), {
+    headers: { origin: "http://localhost:3000" },
+  });
+  const cookie = cookiesOf(verified);
+  if (!cookie.includes("session_token")) throw new Error("verification did not sign in");
+  return cookie;
+}
+
+/** jsonRequest with optional extra headers (e.g. Idempotency-Key). */
+export function request(
+  app: App,
+  path: string,
+  init: { method?: string; body?: unknown; cookie?: string; headers?: Record<string, string> } = {},
+) {
+  const headers: Record<string, string> = {
+    origin: "http://localhost:3000",
+    "content-type": "application/json",
+    ...init.headers,
+  };
+  if (init.cookie) headers.cookie = init.cookie;
+  return app.request(path, {
+    method: init.method ?? (init.body !== undefined ? "POST" : "GET"),
+    headers,
+    ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+  });
+}

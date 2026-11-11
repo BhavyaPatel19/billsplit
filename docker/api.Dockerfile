@@ -13,12 +13,14 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/config/package.json packages/config/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/db/package.json packages/db/
+COPY packages/split-engine/package.json packages/split-engine/
 COPY apps/api/package.json apps/api/
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter @billsplit/api...
 COPY packages/config packages/config
 COPY packages/contracts packages/contracts
 COPY packages/db packages/db
+COPY packages/split-engine packages/split-engine
 COPY apps/api apps/api
 RUN pnpm --filter @billsplit/api... build
 # Pruned production bundle (runtime deps only, workspace deps copied in).

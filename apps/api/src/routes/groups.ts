@@ -23,6 +23,7 @@ import {
 import type { Env } from "../env.js";
 import { requireMembership, requireOwner } from "../lib/authorize.js";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors.js";
+import { hasHistory } from "../lib/ledger.js";
 import { validate } from "../lib/validate.js";
 import { requireSession, type SessionVariables } from "../middleware/session.js";
 
@@ -293,7 +294,13 @@ export function groupRoutes(db: Db, env: Env) {
       } else if (target.userId !== null) {
         throw conflict("Members leave on their own; only placeholders can be removed");
       }
-      // TODO(step 14): refuse when the participant has ledger history; offer merge instead.
+      if (await hasHistory(db, target.id)) {
+        throw conflict(
+          target.userId === null
+            ? "This person is part of existing expenses. Merge them into a member instead."
+            : "You are part of existing expenses. Settle up and ask the owner before leaving.",
+        );
+      }
       await db.delete(schema.participants).where(eq(schema.participants.id, target.id));
       return c.body(null, 204);
     },

@@ -19,6 +19,7 @@
     "@better-auth/drizzle-adapter": "1.7.15",
     "@billsplit/contracts": "workspace:*",
     "@billsplit/db": "workspace:*",
+    "@billsplit/split-engine": "workspace:*",
     "@hono/node-server": "2.1.6",
     "@node-rs/argon2": "2.2.2",
     "@scalar/hono-api-reference": "0.12.18",

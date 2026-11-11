@@ -19,6 +19,8 @@ export {
   ZERO_CENTS,
   formatCents,
   toDecimalString,
+  currencyDigits,
+  parseDecimal,
 } from "./money.js";
 export { allocate, validateWeights } from "./allocate.js";
 export {

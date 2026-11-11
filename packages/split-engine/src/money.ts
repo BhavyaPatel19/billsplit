@@ -131,3 +131,37 @@ export function toDecimalString(amount: Cents, digits: number): string {
   const fraction = magnitude.slice(-digits);
   return `${sign}${whole}.${fraction}`;
 }
+
+/**
+ * Number of minor-unit digits for a currency according to Intl (2 for USD, 0 for JPY, 3 for BHD).
+ *
+ * @throws {RangeError} (from Intl) when `currency` is not a well-formed code.
+ */
+export function currencyDigits(currency: string): number {
+  return (
+    new Intl.NumberFormat("en-US", { style: "currency", currency }).resolvedOptions()
+      .maximumFractionDigits ?? 2
+  );
+}
+
+/**
+ * Parse a user-typed decimal amount ("12.5", "1,234.56", ".99") into minor units without going
+ * through floats. Returns `null` for anything that is not a plain decimal with at most
+ * `digits` fractional places, or that does not fit in a safe integer.
+ *
+ * @example
+ * ```ts
+ * parseDecimal("12.5", 2); // 1250
+ * parseDecimal("12.345", 2); // null (too precise)
+ * ```
+ */
+export function parseDecimal(input: string, digits: number): Cents | null {
+  const match = /^(-)?(\d*)(?:\.(\d*))?$/.exec(input.trim().replace(/,/g, ""));
+  if (!match) return null;
+  const [, sign, whole = "", fraction = ""] = match;
+  if (whole === "" && fraction === "") return null;
+  if (fraction.length > digits) return null;
+  const value = Number(whole || "0") * 10 ** digits + Number(fraction.padEnd(digits, "0") || "0");
+  if (!Number.isSafeInteger(value)) return null;
+  return cents(sign ? 0 - value : value);
+}

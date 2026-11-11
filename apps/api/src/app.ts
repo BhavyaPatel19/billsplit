@@ -14,6 +14,7 @@ import type { Env } from "./env.js";
 import type { Logger } from "./logger.js";
 import { sessionMiddleware, type SessionVariables } from "./middleware/session.js";
 import { healthRoutes } from "./routes/health.js";
+import { expenseRoutes } from "./routes/expenses.js";
 import { groupRoutes } from "./routes/groups.js";
 import { inviteRoutes } from "./routes/invites.js";
 import { meRoutes } from "./routes/me.js";
@@ -76,6 +77,7 @@ export function createApp({ env, logger, db, auth, startedAt = new Date() }: App
   app.use("*", sessionMiddleware(auth));
   app.route("/", meRoutes());
   app.route("/", groupRoutes(db, env));
+  app.route("/", expenseRoutes(db));
   app.route("/", inviteRoutes(db));
 
   app.get(
