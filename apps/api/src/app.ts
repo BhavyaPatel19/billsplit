@@ -14,6 +14,7 @@ import type { Logger } from "./logger.js";
 import { sessionMiddleware, type SessionVariables } from "./middleware/session.js";
 import { healthRoutes } from "./routes/health.js";
 import { meRoutes } from "./routes/me.js";
+import { metaRoutes } from "./routes/meta.js";
 
 export interface AppDeps {
   env: Env;
@@ -64,6 +65,7 @@ export function createApp({ env, logger, db, auth, startedAt = new Date() }: App
     }
   };
   app.route("/", healthRoutes({ env, startedAt, probes: [dbProbe] }));
+  app.route("/", metaRoutes(env));
 
   // Better Auth owns everything under /api/auth (sign-up, sign-in, verification, OAuth callbacks).
   app.on(["GET", "POST"], "/auth/*", (c) => auth.handler(c.req.raw));

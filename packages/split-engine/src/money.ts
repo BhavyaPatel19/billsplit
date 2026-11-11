@@ -24,7 +24,8 @@ export function cents(n: number): Cents {
       `Expected a safe integer number of minor units, got ${n}`,
     );
   }
-  return n as Cents;
+  // Normalise -0 (e.g. from negating a zero) so equality checks and JSON stay predictable.
+  return (n === 0 ? 0 : n) as Cents;
 }
 
 /**
