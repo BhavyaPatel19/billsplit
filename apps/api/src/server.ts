@@ -4,18 +4,28 @@ import { createApp } from "./app.js";
 import { createAuth } from "./auth.js";
 import { createMailer } from "./email.js";
 import { loadEnv } from "./env.js";
+import { LogReceiptJobs } from "./jobs.js";
 import { createLogger } from "./logger.js";
+import { createReceiptStorage } from "./storage.js";
 
 const env = loadEnv();
 const logger = createLogger(env);
 const dbHandle = createDb({ connectionString: env.DATABASE_URL, max: env.DATABASE_POOL_MAX });
 const mailer = createMailer(env, logger);
 const auth = createAuth({ env, db: dbHandle.db, mailer, logger });
-const app = createApp({ env, logger, db: dbHandle.db, auth });
+const storage = createReceiptStorage(env);
+const jobs = new LogReceiptJobs(logger);
+const app = createApp({ env, logger, db: dbHandle.db, auth, storage, jobs });
 
 const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   logger.info(
-    { port: info.port, env: env.NODE_ENV, email: env.EMAIL_TRANSPORT, appUrl: env.APP_URL },
+    {
+      port: info.port,
+      env: env.NODE_ENV,
+      email: env.EMAIL_TRANSPORT,
+      appUrl: env.APP_URL,
+      receipts: env.RECEIPTS_BUCKET ?? "disabled",
+    },
     "api listening",
   );
 });

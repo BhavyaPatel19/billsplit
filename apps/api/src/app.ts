@@ -11,6 +11,7 @@ import type { Db } from "@billsplit/db";
 import type { ReadinessCheck } from "@billsplit/contracts";
 import type { Auth } from "./auth.js";
 import type { Env } from "./env.js";
+import type { ReceiptJobs } from "./jobs.js";
 import type { Logger } from "./logger.js";
 import { sessionMiddleware, type SessionVariables } from "./middleware/session.js";
 import { healthRoutes } from "./routes/health.js";
@@ -19,18 +20,31 @@ import { groupRoutes } from "./routes/groups.js";
 import { inviteRoutes } from "./routes/invites.js";
 import { meRoutes } from "./routes/me.js";
 import { metaRoutes } from "./routes/meta.js";
+import { receiptRoutes } from "./routes/receipts.js";
+import type { ReceiptStorage } from "./storage.js";
 
 export interface AppDeps {
   env: Env;
   logger: Logger;
   db: Db;
   auth: Auth;
+  /** Null when no bucket is configured; receipt endpoints then answer 503. */
+  storage: ReceiptStorage | null;
+  jobs: ReceiptJobs;
   startedAt?: Date;
 }
 
 export type AppVariables = SessionVariables;
 
-export function createApp({ env, logger, db, auth, startedAt = new Date() }: AppDeps) {
+export function createApp({
+  env,
+  logger,
+  db,
+  auth,
+  storage,
+  jobs,
+  startedAt = new Date(),
+}: AppDeps) {
   // Everything lives under /api so the reverse proxy and Next.js rewrites forward the prefix as-is.
   const app = new Hono<{ Variables: AppVariables }>().basePath("/api");
 
@@ -79,6 +93,7 @@ export function createApp({ env, logger, db, auth, startedAt = new Date() }: App
   app.route("/", groupRoutes(db, env));
   app.route("/", expenseRoutes(db));
   app.route("/", inviteRoutes(db));
+  app.route("/", receiptRoutes(db, storage, jobs));
 
   app.get(
     "/openapi.json",

@@ -4,12 +4,16 @@ import pino from "pino";
 import { createApp, type App } from "../src/app.js";
 import { createAuth } from "../src/auth.js";
 import { InMemoryMailer } from "../src/email.js";
+import { InMemoryReceiptJobs } from "../src/jobs.js";
+import { InMemoryReceiptStorage } from "../src/storage.js";
 import { loadEnv, type Env } from "../src/env.js";
 
 export interface TestContext {
   app: App;
   env: Env;
   mailer: InMemoryMailer;
+  storage: InMemoryReceiptStorage;
+  jobs: InMemoryReceiptJobs;
   db: DbHandle;
   stop(): Promise<void>;
 }
@@ -35,12 +39,16 @@ export async function startTestContext(overrides: NodeJS.ProcessEnv = {}): Promi
   const db = createDb({ connectionString, max: 3 });
   const mailer = new InMemoryMailer();
   const auth = createAuth({ env, db: db.db, mailer, logger });
-  const app = createApp({ env, logger, db: db.db, auth });
+  const storage = new InMemoryReceiptStorage();
+  const jobs = new InMemoryReceiptJobs();
+  const app = createApp({ env, logger, db: db.db, auth, storage, jobs });
 
   return {
     app,
     env,
     mailer,
+    storage,
+    jobs,
     db,
     stop: async () => {
       await db.close();

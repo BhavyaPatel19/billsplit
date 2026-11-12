@@ -34,6 +34,21 @@ const EnvSchema = z
     /** smtp://host:port (Mailpit locally). */
     SMTP_URL: z.string().default("smtp://localhost:1025"),
     AWS_REGION: z.string().optional(),
+
+    /** Private bucket for receipt images. Unset: receipt endpoints answer 503. */
+    RECEIPTS_BUCKET: z.string().optional(),
+    /** S3-compatible endpoint the API reaches (RustFS locally); unset in AWS. */
+    S3_ENDPOINT: z.url().optional(),
+    /** Endpoint browsers reach, used to sign URLs; defaults to S3_ENDPOINT. */
+    S3_PUBLIC_ENDPOINT: z.url().optional(),
+    /** Static keys for local S3 only; in AWS the instance role supplies credentials. */
+    S3_ACCESS_KEY: z.string().optional(),
+    S3_SECRET_KEY: z.string().optional(),
+    /** Path-style URLs (bucket in the path); defaults to on when S3_ENDPOINT is set. */
+    S3_FORCE_PATH_STYLE: z
+      .enum(["true", "false"])
+      .optional()
+      .transform((v) => (v === undefined ? undefined : v === "true")),
   })
   .transform((e) => ({
     ...e,
