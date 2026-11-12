@@ -131,8 +131,14 @@ export function createReceiptStorage(env: Env): ReceiptStorage | null {
     // Browsers cannot compute the SDK's default CRC32 checksum header for a presigned PUT.
     requestChecksumCalculation: "WHEN_REQUIRED",
     responseChecksumValidation: "WHEN_REQUIRED",
+    // Static keys only for local S3; reads env vars, holds no secret (hence the gitleaks marker).
     ...(env.S3_ACCESS_KEY && env.S3_SECRET_KEY
-      ? { credentials: { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY } }
+      ? {
+          credentials: {
+            accessKeyId: env.S3_ACCESS_KEY,
+            secretAccessKey: env.S3_SECRET_KEY, // gitleaks:allow
+          },
+        }
       : {}),
   };
   const client = new S3Client({
