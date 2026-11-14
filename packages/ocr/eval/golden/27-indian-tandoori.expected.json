@@ -1,0 +1,46 @@
+{
+  "id": "27-indian-tandoori",
+  "category": "discounts",
+  "description": "Indian dinner with weekday coupon discount",
+  "expected": {
+    "merchant": "Amber India Kitchen",
+    "date": "2026-11-05",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Chicken Tikka Masala",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 2100,
+        "confidence": "high"
+      },
+      {
+        "description": "Palak Paneer",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1900,
+        "confidence": "high"
+      },
+      {
+        "description": "Garlic Naan",
+        "quantity": 3,
+        "unitPriceCents": 450,
+        "totalPriceCents": 1350,
+        "confidence": "high"
+      },
+      {
+        "description": "Mango Lassi",
+        "quantity": 2,
+        "unitPriceCents": 550,
+        "totalPriceCents": 1100,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 6450,
+    "taxCents": 581,
+    "tipCents": 1000,
+    "feeCents": null,
+    "discountCents": 500,
+    "totalCents": 7531
+  }
+}

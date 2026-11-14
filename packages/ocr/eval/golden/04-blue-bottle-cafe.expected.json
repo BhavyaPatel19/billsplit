@@ -1,0 +1,39 @@
+{
+  "id": "04-blue-bottle-cafe",
+  "category": "cafe",
+  "description": "Morning coffee order with tax and no tip",
+  "expected": {
+    "merchant": "Harbor Roast Coffee",
+    "date": "2026-10-28",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Oat Latte",
+        "quantity": 2,
+        "unitPriceCents": 625,
+        "totalPriceCents": 1250,
+        "confidence": "high"
+      },
+      {
+        "description": "Cold Brew",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 550,
+        "confidence": "high"
+      },
+      {
+        "description": "Almond Croissant",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 525,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 2325,
+    "taxCents": 203,
+    "tipCents": null,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 2528
+  }
+}

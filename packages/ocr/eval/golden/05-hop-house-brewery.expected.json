@@ -1,0 +1,46 @@
+{
+  "id": "05-hop-house-brewery",
+  "category": "duplicate-items",
+  "description": "Bar tab with duplicate line items and 20% gratuity",
+  "expected": {
+    "merchant": "Hop House Brewery",
+    "date": "2026-11-01",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "IPA Draft",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 800,
+        "confidence": "high"
+      },
+      {
+        "description": "IPA Draft",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 800,
+        "confidence": "high"
+      },
+      {
+        "description": "Pretzel Bites",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1100,
+        "confidence": "high"
+      },
+      {
+        "description": "Smash Burger",
+        "quantity": 2,
+        "unitPriceCents": 1500,
+        "totalPriceCents": 3000,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 5700,
+    "taxCents": 513,
+    "tipCents": 1140,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 7353
+  }
+}

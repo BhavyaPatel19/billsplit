@@ -11,6 +11,17 @@ export {
 } from "./claude.js";
 export { FixtureOcrProvider, type FixtureOcrOptions } from "./fixture.js";
 export { ratesForModel, summarizeBetaUsage } from "./pricing.js";
+export {
+  GoldenReceiptCaseSchema,
+  aggregateEvalResults,
+  labelSimilarity,
+  normalizeItemLabel,
+  scoreReceiptExtraction,
+  type EvalSummary,
+  type GoldenReceiptCase,
+  type ReceiptEvalCaseResult,
+  type ReceiptEvalScore,
+} from "./eval.js";
 export { reconcileReceiptExtraction } from "./reconcile.js";
 export { RECEIPT_SAMPLE_EXTRACTIONS, getReceiptSample, renderSampleReceiptSvg } from "./samples.js";
 export {

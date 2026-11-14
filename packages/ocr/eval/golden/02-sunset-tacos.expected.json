@@ -1,0 +1,32 @@
+{
+  "id": "02-sunset-tacos",
+  "category": "fees-and-discounts",
+  "description": "Taqueria bill with service fee and discount",
+  "expected": {
+    "merchant": "Sunset Tacos",
+    "date": "2026-11-12",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Al Pastor Tacos",
+        "quantity": 3,
+        "unitPriceCents": 450,
+        "totalPriceCents": 1350,
+        "confidence": "high"
+      },
+      {
+        "description": "Horchata",
+        "quantity": 1,
+        "unitPriceCents": 400,
+        "totalPriceCents": 400,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 1750,
+    "taxCents": 158,
+    "tipCents": 350,
+    "feeCents": 100,
+    "discountCents": 200,
+    "totalCents": 2158
+  }
+}

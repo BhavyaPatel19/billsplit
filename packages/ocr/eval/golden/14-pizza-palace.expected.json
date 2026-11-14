@@ -1,0 +1,46 @@
+{
+  "id": "14-pizza-palace",
+  "category": "discounts",
+  "description": "Group pizza order with coupon discount",
+  "expected": {
+    "merchant": "Slice Society Pizzeria",
+    "date": "2026-11-06",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "18in Pepperoni Pie",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 2600,
+        "confidence": "high"
+      },
+      {
+        "description": "18in White Mushroom Pie",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 2500,
+        "confidence": "high"
+      },
+      {
+        "description": "Garlic Knots",
+        "quantity": 2,
+        "unitPriceCents": 650,
+        "totalPriceCents": 1300,
+        "confidence": "high"
+      },
+      {
+        "description": "Caesar Salad",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1100,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 7500,
+    "taxCents": 619,
+    "tipCents": 1200,
+    "feeCents": null,
+    "discountCents": 500,
+    "totalCents": 8819
+  }
+}

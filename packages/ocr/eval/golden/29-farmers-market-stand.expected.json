@@ -1,0 +1,39 @@
+{
+  "id": "29-farmers-market-stand",
+  "category": "no-subtotal",
+  "description": "Minimalist farm stand receipt omitting subtotal and tax",
+  "expected": {
+    "merchant": "Oak Creek Berry Farm",
+    "date": "2026-11-09",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Strawberries Flat",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1600,
+        "confidence": "high"
+      },
+      {
+        "description": "Raw Honey Jar",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1200,
+        "confidence": "high"
+      },
+      {
+        "description": "Heirloom Tomatoes",
+        "quantity": 2,
+        "unitPriceCents": 450,
+        "totalPriceCents": 900,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": null,
+    "taxCents": null,
+    "tipCents": null,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 3700
+  }
+}

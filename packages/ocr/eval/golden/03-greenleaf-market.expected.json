@@ -1,0 +1,53 @@
+{
+  "id": "03-greenleaf-market",
+  "category": "grocery",
+  "description": "Produce and pantry grocery run with partial tax",
+  "expected": {
+    "merchant": "Greenleaf Market",
+    "date": "2026-11-11",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Organic Bananas",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 129,
+        "confidence": "high"
+      },
+      {
+        "description": "Oat Milk",
+        "quantity": 2,
+        "unitPriceCents": 449,
+        "totalPriceCents": 898,
+        "confidence": "high"
+      },
+      {
+        "description": "Sourdough Loaf",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 650,
+        "confidence": "high"
+      },
+      {
+        "description": "Free-range Eggs",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 699,
+        "confidence": "high"
+      },
+      {
+        "description": "Coffee Beans",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1499,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 3875,
+    "taxCents": 135,
+    "tipCents": null,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 4010
+  }
+}

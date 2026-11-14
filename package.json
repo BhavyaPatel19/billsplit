@@ -18,6 +18,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "check": "turbo run lint typecheck test",
+    "eval:ocr": "pnpm --filter @billsplit/ocr eval",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky",

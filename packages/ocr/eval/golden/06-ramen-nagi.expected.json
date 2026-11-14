@@ -1,0 +1,46 @@
+{
+  "id": "06-ramen-nagi",
+  "category": "restaurant",
+  "description": "Ramen bowls and toppings",
+  "expected": {
+    "merchant": "Menya Nagi",
+    "date": "2026-11-03",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Tonkotsu Ramen",
+        "quantity": 2,
+        "unitPriceCents": 1750,
+        "totalPriceCents": 3500,
+        "confidence": "high"
+      },
+      {
+        "description": "Ajitama Egg",
+        "quantity": 2,
+        "unitPriceCents": 250,
+        "totalPriceCents": 500,
+        "confidence": "high"
+      },
+      {
+        "description": "Extra Chashu",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 450,
+        "confidence": "high"
+      },
+      {
+        "description": "Gyoza 6pc",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 850,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 5300,
+    "taxCents": 477,
+    "tipCents": 954,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 6731
+  }
+}

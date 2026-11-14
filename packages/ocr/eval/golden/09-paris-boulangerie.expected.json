@@ -1,0 +1,39 @@
+{
+  "id": "09-paris-boulangerie",
+  "category": "currency-eur",
+  "description": "Euro bakery receipt with explicit VAT line",
+  "expected": {
+    "merchant": "Boulangerie Saint-Michel",
+    "date": "2026-10-14",
+    "currency": "EUR",
+    "items": [
+      {
+        "description": "Baguette Tradition",
+        "quantity": 2,
+        "unitPriceCents": 140,
+        "totalPriceCents": 280,
+        "confidence": "high"
+      },
+      {
+        "description": "Pain au Chocolat",
+        "quantity": 3,
+        "unitPriceCents": 180,
+        "totalPriceCents": 540,
+        "confidence": "high"
+      },
+      {
+        "description": "Cafe Creme",
+        "quantity": 2,
+        "unitPriceCents": 390,
+        "totalPriceCents": 780,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 1600,
+    "taxCents": 160,
+    "tipCents": null,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 1760
+  }
+}

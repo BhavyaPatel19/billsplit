@@ -1,0 +1,46 @@
+{
+  "id": "28-sports-bar-wings",
+  "category": "zero-cent-item",
+  "description": "Sports bar tab including a complimentary zero-dollar item",
+  "expected": {
+    "merchant": "Overtime Sports Grill",
+    "date": "2026-10-31",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Buffalo Wings 24pc",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 2800,
+        "confidence": "high"
+      },
+      {
+        "description": "Loaded Nachos",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1550,
+        "confidence": "high"
+      },
+      {
+        "description": "Pitcher Pilsner",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 2200,
+        "confidence": "high"
+      },
+      {
+        "description": "Water Pitchers",
+        "quantity": 2,
+        "unitPriceCents": 0,
+        "totalPriceCents": 0,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 6550,
+    "taxCents": 590,
+    "tipCents": 1310,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 8450
+  }
+}

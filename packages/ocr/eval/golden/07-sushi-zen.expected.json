@@ -1,0 +1,74 @@
+{
+  "id": "07-sushi-zen",
+  "category": "many-items",
+  "description": "Eight-item group sushi dinner",
+  "expected": {
+    "merchant": "Sushi Zen",
+    "date": "2026-10-19",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Edamame",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 600,
+        "confidence": "high"
+      },
+      {
+        "description": "Spicy Tuna Roll",
+        "quantity": 2,
+        "unitPriceCents": 950,
+        "totalPriceCents": 1900,
+        "confidence": "high"
+      },
+      {
+        "description": "Salmon Nigiri",
+        "quantity": 2,
+        "unitPriceCents": 800,
+        "totalPriceCents": 1600,
+        "confidence": "high"
+      },
+      {
+        "description": "Dragon Roll",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1650,
+        "confidence": "high"
+      },
+      {
+        "description": "Yellowtail Sashimi",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1800,
+        "confidence": "high"
+      },
+      {
+        "description": "Miso Soup",
+        "quantity": 3,
+        "unitPriceCents": 350,
+        "totalPriceCents": 1050,
+        "confidence": "high"
+      },
+      {
+        "description": "Matcha Ice Cream",
+        "quantity": 2,
+        "unitPriceCents": 550,
+        "totalPriceCents": 1100,
+        "confidence": "high"
+      },
+      {
+        "description": "Sapporo Bottle",
+        "quantity": 2,
+        "unitPriceCents": 700,
+        "totalPriceCents": 1400,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 11100,
+    "taxCents": 999,
+    "tipCents": 2220,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 14319
+  }
+}

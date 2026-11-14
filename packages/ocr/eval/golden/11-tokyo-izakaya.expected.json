@@ -1,0 +1,39 @@
+{
+  "id": "11-tokyo-izakaya",
+  "category": "currency-jpy",
+  "description": "Zero-decimal Japanese Yen izakaya bill",
+  "expected": {
+    "merchant": "Torikizoku Shinjuku",
+    "date": "2026-10-17",
+    "currency": "JPY",
+    "items": [
+      {
+        "description": "Yakitori Skewers",
+        "quantity": 4,
+        "unitPriceCents": 370,
+        "totalPriceCents": 1480,
+        "confidence": "high"
+      },
+      {
+        "description": "Karaage Chicken",
+        "quantity": 2,
+        "unitPriceCents": 550,
+        "totalPriceCents": 1100,
+        "confidence": "high"
+      },
+      {
+        "description": "Draft Beer",
+        "quantity": 3,
+        "unitPriceCents": 480,
+        "totalPriceCents": 1440,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 4020,
+    "taxCents": 402,
+    "tipCents": null,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 4422
+  }
+}

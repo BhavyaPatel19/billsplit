@@ -1,0 +1,39 @@
+{
+  "id": "18-delivery-order",
+  "category": "fees-and-discounts",
+  "description": "Food delivery receipt with delivery fee, promo, and driver tip",
+  "expected": {
+    "merchant": "Pita Mediterranean",
+    "date": "2026-11-07",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Chicken Shawarma Plate",
+        "quantity": 2,
+        "unitPriceCents": 1695,
+        "totalPriceCents": 3390,
+        "confidence": "high"
+      },
+      {
+        "description": "Falafel Wrap",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1295,
+        "confidence": "high"
+      },
+      {
+        "description": "Hummus & Pita",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 795,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 5480,
+    "taxCents": 493,
+    "tipCents": 800,
+    "feeCents": 499,
+    "discountCents": 1000,
+    "totalCents": 6272
+  }
+}

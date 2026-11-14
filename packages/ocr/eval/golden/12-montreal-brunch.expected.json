@@ -1,0 +1,39 @@
+{
+  "id": "12-montreal-brunch",
+  "category": "currency-cad",
+  "description": "Canadian dollar brunch with combined tax",
+  "expected": {
+    "merchant": "Cafe Olive et Gourmando",
+    "date": "2026-10-30",
+    "currency": "CAD",
+    "items": [
+      {
+        "description": "Cuban Panini",
+        "quantity": 2,
+        "unitPriceCents": 1600,
+        "totalPriceCents": 3200,
+        "confidence": "high"
+      },
+      {
+        "description": "Shakshuka Bowl",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1850,
+        "confidence": "high"
+      },
+      {
+        "description": "Brioche French Toast",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1450,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 6500,
+    "taxCents": 973,
+    "tipCents": 1170,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 8643
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "id": "15-trader-joes",
+  "category": "grocery",
+  "description": "Ten-item apartment grocery run with zero tax",
+  "expected": {
+    "merchant": "Neighborhood Grocer",
+    "date": "2026-11-09",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Mandarin Chicken",
+        "quantity": 2,
+        "unitPriceCents": 499,
+        "totalPriceCents": 998,
+        "confidence": "high"
+      },
+      {
+        "description": "Jasmin Rice 3lb",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 449,
+        "confidence": "high"
+      },
+      {
+        "description": "Chili Crisp",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 429,
+        "confidence": "high"
+      },
+      {
+        "description": "Greek Yogurt",
+        "quantity": 2,
+        "unitPriceCents": 149,
+        "totalPriceCents": 298,
+        "confidence": "high"
+      },
+      {
+        "description": "Baby Spinach",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 249,
+        "confidence": "high"
+      },
+      {
+        "description": "Avocados 4ct",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 399,
+        "confidence": "high"
+      },
+      {
+        "description": "Sparkling Cider",
+        "quantity": 2,
+        "unitPriceCents": 349,
+        "totalPriceCents": 698,
+        "confidence": "high"
+      },
+      {
+        "description": "Frozen Blueberries",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 399,
+        "confidence": "high"
+      },
+      {
+        "description": "Pasta Sauce",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 329,
+        "confidence": "high"
+      },
+      {
+        "description": "Rigatoni",
+        "quantity": 2,
+        "unitPriceCents": 129,
+        "totalPriceCents": 258,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 4506,
+    "taxCents": null,
+    "tipCents": null,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 4506
+  }
+}

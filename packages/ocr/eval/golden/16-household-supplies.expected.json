@@ -1,0 +1,46 @@
+{
+  "id": "16-household-supplies",
+  "category": "household",
+  "description": "Apartment household goods with sales tax",
+  "expected": {
+    "merchant": "City Target",
+    "date": "2026-10-27",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Paper Towels 8pk",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1499,
+        "confidence": "high"
+      },
+      {
+        "description": "Dish Soap Refill",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 549,
+        "confidence": "high"
+      },
+      {
+        "description": "Laundry Pods",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1799,
+        "confidence": "high"
+      },
+      {
+        "description": "Trash Bags 45ct",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1199,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 5046,
+    "taxCents": 442,
+    "tipCents": null,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 5488
+  }
+}

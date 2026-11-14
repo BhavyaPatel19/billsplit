@@ -1,0 +1,39 @@
+{
+  "id": "30-wine-bottle-shop",
+  "category": "skewed-discount",
+  "description": "Slightly rotated wine shop receipt with case discount and tax",
+  "expected": {
+    "merchant": "Cellar Door Wines",
+    "date": "2026-11-11",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Pinot Noir Oregon",
+        "quantity": 2,
+        "unitPriceCents": 2800,
+        "totalPriceCents": 5600,
+        "confidence": "high"
+      },
+      {
+        "description": "Sauvignon Blanc",
+        "quantity": 2,
+        "unitPriceCents": 2200,
+        "totalPriceCents": 4400,
+        "confidence": "high"
+      },
+      {
+        "description": "Sparkling Rose",
+        "quantity": 2,
+        "unitPriceCents": 2500,
+        "totalPriceCents": 5000,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 15000,
+    "taxCents": 1148,
+    "tipCents": null,
+    "feeCents": null,
+    "discountCents": 1500,
+    "totalCents": 14648
+  }
+}

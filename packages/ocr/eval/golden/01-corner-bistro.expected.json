@@ -1,0 +1,39 @@
+{
+  "id": "01-corner-bistro",
+  "category": "restaurant",
+  "description": "Italian sit-down dinner with tax and tip",
+  "expected": {
+    "merchant": "Corner Bistro",
+    "date": "2026-11-10",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Margherita Pizza",
+        "quantity": 1,
+        "unitPriceCents": 1800,
+        "totalPriceCents": 1800,
+        "confidence": "high"
+      },
+      {
+        "description": "Pasta Carbonara",
+        "quantity": 2,
+        "unitPriceCents": 1650,
+        "totalPriceCents": 3300,
+        "confidence": "high"
+      },
+      {
+        "description": "Sparkling Water",
+        "quantity": 2,
+        "unitPriceCents": 450,
+        "totalPriceCents": 900,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 6000,
+    "taxCents": 540,
+    "tipCents": 1080,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 7620
+  }
+}

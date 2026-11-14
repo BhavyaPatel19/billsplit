@@ -1,0 +1,32 @@
+{
+  "id": "26-berlin-currywurst",
+  "category": "currency-eur",
+  "description": "Euro fast-casual bill with bottle deposit fee",
+  "expected": {
+    "merchant": "Kiez Imbiss Berlin",
+    "date": "2026-10-15",
+    "currency": "EUR",
+    "items": [
+      {
+        "description": "Currywurst mit Pommes",
+        "quantity": 2,
+        "unitPriceCents": 750,
+        "totalPriceCents": 1500,
+        "confidence": "high"
+      },
+      {
+        "description": "Club Mate 0.5L",
+        "quantity": 2,
+        "unitPriceCents": 320,
+        "totalPriceCents": 640,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 2140,
+    "taxCents": 150,
+    "tipCents": null,
+    "feeCents": 50,
+    "discountCents": null,
+    "totalCents": 2340
+  }
+}

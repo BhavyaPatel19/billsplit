@@ -1,0 +1,60 @@
+{
+  "id": "21-korean-bbq",
+  "category": "many-items",
+  "description": "Group Korean BBQ dinner with large-party service charge",
+  "expected": {
+    "merchant": "Seoul Garden BBQ",
+    "date": "2026-10-29",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Galbi Short Rib",
+        "quantity": 2,
+        "unitPriceCents": 3600,
+        "totalPriceCents": 7200,
+        "confidence": "high"
+      },
+      {
+        "description": "Pork Belly Samgyupsal",
+        "quantity": 2,
+        "unitPriceCents": 2600,
+        "totalPriceCents": 5200,
+        "confidence": "high"
+      },
+      {
+        "description": "Kimchi Pancake",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1600,
+        "confidence": "high"
+      },
+      {
+        "description": "Seafood Tofu Stew",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1800,
+        "confidence": "high"
+      },
+      {
+        "description": "Steamed Rice",
+        "quantity": 4,
+        "unitPriceCents": 300,
+        "totalPriceCents": 1200,
+        "confidence": "high"
+      },
+      {
+        "description": "Soju Bottle",
+        "quantity": 2,
+        "unitPriceCents": 1400,
+        "totalPriceCents": 2800,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 19800,
+    "taxCents": 1782,
+    "tipCents": null,
+    "feeCents": 3564,
+    "discountCents": null,
+    "totalCents": 25146
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "id": "08-whole-foods-weighted",
+  "category": "weighted-items",
+  "description": "Weighted produce and deli items",
+  "expected": {
+    "merchant": "Valley Natural Foods",
+    "date": "2026-11-05",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Atlantic Salmon lb",
+        "quantity": 1.5,
+        "unitPriceCents": 1400,
+        "totalPriceCents": 2100,
+        "confidence": "high"
+      },
+      {
+        "description": "Honeycrisp Apples lb",
+        "quantity": 2.5,
+        "unitPriceCents": 300,
+        "totalPriceCents": 750,
+        "confidence": "high"
+      },
+      {
+        "description": "Olive Oil 500ml",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1399,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 4249,
+    "taxCents": null,
+    "tipCents": null,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 4249
+  }
+}
