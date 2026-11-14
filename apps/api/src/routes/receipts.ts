@@ -12,12 +12,12 @@ import {
   type Receipt,
   type ReceiptContentType,
 } from "@billsplit/contracts";
+import { receiptKeys, type ReceiptStorage } from "@billsplit/storage";
 import type { ReceiptJobs } from "../jobs.js";
 import { requireMembership } from "../lib/authorize.js";
 import { ApiError, badRequest, conflict, forbidden, notFound } from "../lib/errors.js";
 import { validate } from "../lib/validate.js";
 import { requireSession, type SessionVariables } from "../middleware/session.js";
-import type { ReceiptStorage } from "../storage.js";
 
 const json = (s: Parameters<typeof resolver>[0]) => ({
   "application/json": { schema: resolver(s) },
@@ -30,13 +30,6 @@ const GET_TTL_SECONDS = 5 * 60;
 const LIST_LIMIT = 50;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Object key layout: everything for one receipt sits under one prefix in its group. */
-export const receiptKeys = (groupId: string, receiptId: string) => ({
-  original: `receipts/${groupId}/${receiptId}/original`,
-  image: `receipts/${groupId}/${receiptId}/image.jpg`,
-  thumbnail: `receipts/${groupId}/${receiptId}/thumb.jpg`,
-});
 
 type Row = typeof schema.receipts.$inferSelect;
 

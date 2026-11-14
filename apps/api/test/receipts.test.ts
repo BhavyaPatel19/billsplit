@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import pino from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { schema } from "@billsplit/db";
+import { receiptKeys } from "@billsplit/storage";
 import {
   AcceptInviteResponseSchema,
   CreateReceiptResponseSchema,
@@ -15,7 +16,6 @@ import {
 import { createApp } from "../src/app.js";
 import { createAuth } from "../src/auth.js";
 import { InMemoryMailer } from "../src/email.js";
-import { receiptKeys } from "../src/routes/receipts.js";
 import { request, signUpVerified, startTestContext, type TestContext } from "./helpers.js";
 
 let ctx: TestContext;
@@ -121,7 +121,7 @@ describe("confirming an upload", () => {
 
   it("checks the object, marks it uploaded and queues processing exactly once", async () => {
     const { receipt } = await start();
-    ctx.storage.put(keyOf(receipt.id), jpeg(2048), "image/jpeg");
+    await ctx.storage.put(keyOf(receipt.id), jpeg(2048), "image/jpeg");
 
     const first = await complete(receipt.id);
     expect(first.status).toBe(200);
@@ -134,7 +134,7 @@ describe("confirming an upload", () => {
 
   it("fails a file whose size differs from the declaration and deletes it", async () => {
     const { receipt } = await start();
-    ctx.storage.put(keyOf(receipt.id), jpeg(4096), "image/jpeg");
+    await ctx.storage.put(keyOf(receipt.id), jpeg(4096), "image/jpeg");
     const res = await complete(receipt.id);
     expect(res.status).toBe(400);
     expect(ctx.storage.objects.has(keyOf(receipt.id))).toBe(false);
@@ -148,13 +148,13 @@ describe("confirming an upload", () => {
 
   it("fails a file whose type differs from the declaration", async () => {
     const { receipt } = await start();
-    ctx.storage.put(keyOf(receipt.id), jpeg(2048), "text/html");
+    await ctx.storage.put(keyOf(receipt.id), jpeg(2048), "text/html");
     expect((await complete(receipt.id)).status).toBe(400);
   });
 
   it("can only be done by the uploader", async () => {
     const { receipt } = await start();
-    ctx.storage.put(keyOf(receipt.id), jpeg(2048), "image/jpeg");
+    await ctx.storage.put(keyOf(receipt.id), jpeg(2048), "image/jpeg");
     expect((await complete(receipt.id, bo)).status).toBe(403);
     expect((await complete(receipt.id, outsider)).status).toBe(404);
   });

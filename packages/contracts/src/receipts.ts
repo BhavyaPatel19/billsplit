@@ -3,13 +3,9 @@ import { z } from "zod";
 /** Uploads larger than this are refused before a URL is signed, and again when confirmed. */
 export const RECEIPT_MAX_BYTES = 10 * 1024 * 1024;
 
-export const RECEIPT_CONTENT_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-] as const;
+/** Formats the worker's bundled libvips can decode everywhere; HEIC is not among them, and
+ * iOS Safari converts HEIC to JPEG for web uploads anyway. */
+export const RECEIPT_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 export const ReceiptContentTypeSchema = z.enum(RECEIPT_CONTENT_TYPES);
 export type ReceiptContentType = z.infer<typeof ReceiptContentTypeSchema>;

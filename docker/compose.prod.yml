@@ -100,6 +100,24 @@ services:
         awslogs-group: /billsplit/api
         awslogs-stream: ${IMAGE_TAG:-latest}
 
+  worker:
+    image: ${ECR_REGISTRY}/billsplit/worker:${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      <<: *api-env
+      WORKER_CONCURRENCY: 2
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+    logging:
+      <<: *awslogs
+      options:
+        awslogs-region: ${AWS_REGION}
+        awslogs-group: /billsplit/worker
+        awslogs-stream: ${IMAGE_TAG:-latest}
+
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
@@ -134,7 +152,7 @@ services:
         "--maxmemory",
         "128mb",
         "--maxmemory-policy",
-        "allkeys-lru",
+        "noeviction",
       ]
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]

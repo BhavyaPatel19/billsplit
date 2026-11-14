@@ -9,6 +9,8 @@ allowBuilds:
   "@tailwindcss/oxide": true
   unrs-resolver: true
   cpu-features: false
+  # optional native speed-up for bullmq's msgpackr; the pure JS fallback is fine
+  msgpackr-extract: false
   protobufjs: false
   ssh2: false
 

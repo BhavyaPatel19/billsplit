@@ -35,6 +35,9 @@ const EnvSchema = z
     SMTP_URL: z.string().default("smtp://localhost:1025"),
     AWS_REGION: z.string().optional(),
 
+    /** Valkey/Redis for background jobs. Unset: confirmed receipts are only logged, not queued. */
+    REDIS_URL: z.url().optional(),
+
     /** Private bucket for receipt images. Unset: receipt endpoints answer 503. */
     RECEIPTS_BUCKET: z.string().optional(),
     /** S3-compatible endpoint the API reaches (RustFS locally); unset in AWS. */

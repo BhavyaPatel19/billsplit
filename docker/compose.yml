@@ -104,6 +104,7 @@ services:
       EMAIL_TRANSPORT: smtp
       SMTP_URL: smtp://mailpit:1025
       EMAIL_FROM: BillSplit <no-reply@localhost>
+      REDIS_URL: redis://valkey:6379
       RECEIPTS_BUCKET: ${RECEIPTS_BUCKET:-billsplit-receipts}
       # The API reaches S3 inside the network; browsers get URLs signed for localhost.
       S3_ENDPOINT: http://s3:9000
@@ -119,6 +120,32 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
+      s3-init:
+        condition: service_completed_successfully
+
+  worker:
+    profiles: ["app"]
+    build:
+      context: ..
+      dockerfile: docker/worker.Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-local}
+    image: billsplit-worker:${APP_VERSION:-local}
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      DATABASE_URL: postgresql://${POSTGRES_USER:-billsplit}:${POSTGRES_PASSWORD:-billsplit}@postgres:5432/${POSTGRES_DB:-billsplit}
+      REDIS_URL: redis://valkey:6379
+      RECEIPTS_BUCKET: ${RECEIPTS_BUCKET:-billsplit-receipts}
+      S3_ENDPOINT: http://s3:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:${S3_PORT:-9000}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-billsplit}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-billsplit-secret}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
       s3-init:
         condition: service_completed_successfully
 

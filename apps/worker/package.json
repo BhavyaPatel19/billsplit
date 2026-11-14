@@ -1,0 +1,37 @@
+{
+  "name": "@billsplit/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src test",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@billsplit/db": "workspace:*",
+    "@billsplit/queue": "workspace:*",
+    "@billsplit/storage": "workspace:*",
+    "bullmq": "6.5.4",
+    "drizzle-orm": "0.45.4",
+    "pino": "10.4.0",
+    "sharp": "0.35.5",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@billsplit/config": "workspace:*",
+    "@testcontainers/postgresql": "12.2.1",
+    "@types/node": "26.6.6",
+    "pino-pretty": "13.2.0",
+    "testcontainers": "12.2.1",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.1.0"
+  }
+}
