@@ -22,6 +22,13 @@
       "when": 1794457715149,
       "tag": "0002_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794624785629,
+      "tag": "0003_receipt_limits",
+      "breakpoints": true
     }
   ]
 }

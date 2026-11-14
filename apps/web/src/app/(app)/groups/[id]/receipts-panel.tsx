@@ -8,21 +8,26 @@ import {
   ExternalLink,
   Loader2,
   Receipt as ReceiptIcon,
+  Sparkles,
   Upload,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   RECEIPT_CONTENT_TYPES,
+  RECEIPT_SAMPLES,
   ReceiptListResponseSchema,
+  ReceiptSchema,
   type GroupDetail,
   type Receipt,
+  type ReceiptSampleId,
   type ReceiptStatus,
 } from "@billsplit/contracts";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { api, ApiClientError } from "@/lib/api-client";
+import { money } from "@/lib/money";
 import { formatBytes, uploadReceiptFile, type UploadStage } from "@/lib/receipt-upload";
 import { cn } from "@/lib/utils";
 
@@ -74,12 +79,22 @@ const STATUS_META: Record<
   },
 };
 
+const errorMessage = (err: unknown, fallback: string) =>
+  err instanceof ApiClientError || err instanceof Error ? err.message : fallback;
+
 export function ReceiptsPanel({
   group,
   initialReceipts,
+  uploadsEnabled,
+  samplesEnabled,
+  scansPerDay,
 }: {
   group: GroupDetail;
   initialReceipts: Receipt[];
+  uploadsEnabled: boolean;
+  samplesEnabled: boolean;
+  /** 0 when unknown. */
+  scansPerDay: number;
 }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +103,7 @@ export function ReceiptsPanel({
   const [polled, setPolled] = useState<{ base: Receipt[]; receipts: Receipt[] } | null>(null);
   const [stage, setStage] = useState<UploadStage | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [addingSample, setAddingSample] = useState<ReceiptSampleId | null>(null);
 
   const baseReceipts =
     recentUpload && !initialReceipts.some((r) => r.id === recentUpload.id)
@@ -146,70 +162,118 @@ export function ReceiptsPanel({
       setPolled(null);
       router.refresh();
     } catch (err) {
-      setError(
-        err instanceof ApiClientError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Could not upload that receipt.",
-      );
+      setError(errorMessage(err, "Could not upload that receipt."));
     } finally {
       setStage(null);
     }
   };
 
+  const handleSample = async (sampleId: ReceiptSampleId) => {
+    setError(null);
+    setAddingSample(sampleId);
+    try {
+      const created = await api(`/groups/${group.id}/receipts/samples`, ReceiptSchema, {
+        body: { sampleId },
+      });
+      setRecentUpload(created);
+      setPolled(null);
+      router.refresh();
+    } catch (err) {
+      setError(errorMessage(err, "Could not add that sample."));
+    } finally {
+      setAddingSample(null);
+    }
+  };
+
   const uploading = stage !== null;
+  const busy = uploading || addingSample !== null;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Receipts</h2>
-        <div className="flex flex-wrap gap-2">
-          <input
-            ref={cameraInputRef}
-            type="file"
-            accept={ACCEPT}
-            capture="environment"
-            className="sr-only"
-            disabled={uploading}
-            aria-label="Take a receipt photo with camera"
-            onChange={(e) => void handleFileChange(e)}
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={ACCEPT}
-            className="sr-only"
-            disabled={uploading}
-            aria-label="Choose a receipt photo"
-            onChange={(e) => void handleFileChange(e)}
-          />
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={uploading}
-            onClick={() => cameraInputRef.current?.click()}
-          >
-            <Camera className="size-4" aria-hidden /> Take photo
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            loading={uploading}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {!uploading ? <Upload className="size-4" aria-hidden /> : null}
-            {stage ? STAGE_LABEL[stage] : "Upload receipt"}
-          </Button>
-        </div>
+        {uploadsEnabled ? (
+          <div className="flex flex-wrap gap-2">
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept={ACCEPT}
+              capture="environment"
+              className="sr-only"
+              disabled={busy}
+              aria-label="Take a receipt photo with camera"
+              onChange={(e) => void handleFileChange(e)}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPT}
+              className="sr-only"
+              disabled={busy}
+              aria-label="Choose a receipt photo"
+              onChange={(e) => void handleFileChange(e)}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={busy}
+              onClick={() => cameraInputRef.current?.click()}
+            >
+              <Camera className="size-4" aria-hidden /> Take photo
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              loading={uploading}
+              disabled={busy}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {!uploading ? <Upload className="size-4" aria-hidden /> : null}
+              {stage ? STAGE_LABEL[stage] : "Upload receipt"}
+            </Button>
+          </div>
+        ) : null}
       </div>
+
+      {samplesEnabled ? (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+          <Sparkles className="size-3.5 text-amber-500" aria-hidden />
+          <span>Try a sample:</span>
+          {RECEIPT_SAMPLES.map((sample) => (
+            <Button
+              key={sample.id}
+              type="button"
+              variant="secondary"
+              className="h-7 px-2.5 text-xs"
+              title={sample.summary}
+              disabled={busy}
+              loading={addingSample === sample.id}
+              onClick={() => void handleSample(sample.id)}
+            >
+              {sample.title}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+
+      {uploadsEnabled && scansPerDay > 0 ? (
+        <p className="text-xs text-zinc-500">
+          Up to {scansPerDay} photo scans per person per day. Samples don&apos;t count.
+        </p>
+      ) : !uploadsEnabled && samplesEnabled ? (
+        <p className="text-xs text-zinc-500">
+          Photo uploads are turned off in this demo; the samples run the full pipeline.
+        </p>
+      ) : null}
 
       {error ? <Alert tone="error">{error}</Alert> : null}
 
       {receipts.length === 0 ? (
         <Card className="flex flex-col items-center gap-2 py-8 text-center text-sm text-zinc-600 dark:text-zinc-400">
           <ReceiptIcon className="size-7 text-zinc-400" aria-hidden />
-          No receipts uploaded yet. Snap or upload a JPEG, PNG, or WebP photo (up to 10 MB).
+          {uploadsEnabled
+            ? "No receipts uploaded yet. Snap or upload a JPEG, PNG, or WebP photo (up to 10 MB)."
+            : "No receipts yet. Add a sample above to see how scanning works."}
         </Card>
       ) : (
         <ul className="flex flex-col divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
@@ -249,13 +313,35 @@ export function ReceiptsPanel({
                         />
                         {meta.label}
                       </span>
+                      {r.sampleId ? (
+                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                          Sample
+                        </span>
+                      ) : null}
                       <span className="text-xs text-zinc-500">
                         {r.createdAt.slice(0, 10)} · {formatBytes(r.sizeBytes)}
                       </span>
                     </div>
+                    {r.ocr ? (
+                      <p className="mt-1 truncate text-sm font-medium">
+                        {r.ocr.merchant ?? "Unknown merchant"}
+                        {r.ocr.totalCents !== null
+                          ? ` · ${money(r.ocr.totalCents, r.ocr.currency ?? "USD")}`
+                          : ""}
+                        <span className="font-normal text-zinc-500">
+                          {" "}
+                          · {r.ocr.items.length} {r.ocr.items.length === 1 ? "item" : "items"}
+                        </span>
+                      </p>
+                    ) : null}
                     <p className="mt-1 truncate text-xs text-zinc-600 dark:text-zinc-400">
-                      Uploaded by {uploaderName(r.uploadedBy)}
+                      Added by {uploaderName(r.uploadedBy)}
                     </p>
+                    {r.status === "needs_review" && r.ocr?.reconciliation.reason ? (
+                      <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                        {r.ocr.reconciliation.reason}
+                      </p>
+                    ) : null}
                     {r.status === "failed" && r.error ? (
                       <p className="mt-1 text-xs text-red-600 dark:text-red-400">{r.error}</p>
                     ) : null}

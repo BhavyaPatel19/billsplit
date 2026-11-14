@@ -23,7 +23,11 @@ export async function fetchApiHealth(): Promise<ApiHealth> {
   }
 }
 
-const META_FALLBACK: MetaResponse = { version: "unknown", features: { googleSignIn: false } };
+const META_FALLBACK: MetaResponse = {
+  version: "unknown",
+  features: { googleSignIn: false, receiptUploads: true, receiptSamples: true },
+  limits: { receiptScansPerDay: 0 },
+};
 
 /** Public, non-secret configuration the UI adapts to (e.g. whether Google sign-in is wired up). */
 export async function fetchMeta(): Promise<MetaResponse> {

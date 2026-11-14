@@ -25,6 +25,7 @@ const photo = () =>
 async function receipt(
   status: (typeof schema.receipts.$inferInsert)["status"],
   bytes?: Uint8Array,
+  sampleId?: string,
 ) {
   const id = crypto.randomUUID();
   const keys = receiptKeys(groupId, id);
@@ -36,6 +37,7 @@ async function receipt(
     contentType: "image/jpeg",
     sizeBytes: bytes?.byteLength ?? 1,
     originalKey: keys.original,
+    sampleId: sampleId ?? null,
   });
   if (bytes) await storage.put(keys.original, bytes, "image/jpeg");
   return { id, keys };
@@ -184,5 +186,36 @@ describe("processReceipt", () => {
     const r = await row(id);
     expect(r.status).toBe("failed");
     expect(r.error).toMatch(/cannot be processed as a receipt/);
+  });
+
+  it("renders a sample receipt itself and never calls the configured OCR provider", async () => {
+    const { id, keys } = await receipt("uploaded", undefined, "bistro-dinner");
+    const paidOcr: OcrProvider = {
+      name: "claude",
+      extract: () => Promise.reject(new Error("paid provider must not be called for samples")),
+    };
+    expect(await processReceipt({ ...deps, ocr: paidOcr }, id)).toBe("ready");
+
+    const r = await row(id);
+    expect(r.ocrCostMicroUsd).toBe(0);
+    expect(r.sizeBytes).toBe(storage.objects.get(keys.image)!.bytes.byteLength);
+    const parsedOcr = ReceiptOcrSchema.parse(r.ocr);
+    expect(parsedOcr.merchant).toBe("Corner Bistro");
+    expect(parsedOcr.model).toBe("sample:bistro-dinner");
+    const meta = await sharp(storage.objects.get(keys.image)!.bytes).metadata();
+    expect(meta.format).toBe("jpeg");
+    expect(meta.width).toBe(600);
+  });
+
+  it("sends the grocery sample to review because its lines do not add up", async () => {
+    const { id } = await receipt("uploaded", undefined, "grocery-run");
+    expect(await processReceipt(deps, id)).toBe("needs_review");
+    expect(ReceiptOcrSchema.parse((await row(id)).ocr).reconciliation.discrepancyCents).toBe(100);
+  });
+
+  it("fails an unknown sample id", async () => {
+    const { id } = await receipt("uploaded", undefined, "not-a-sample");
+    expect(await processReceipt(deps, id)).toBe("failed");
+    expect((await row(id)).error).toMatch(/Unknown sample/);
   });
 });

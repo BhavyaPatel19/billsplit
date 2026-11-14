@@ -93,7 +93,7 @@ export function createApp({
   app.route("/", groupRoutes(db, env));
   app.route("/", expenseRoutes(db));
   app.route("/", inviteRoutes(db));
-  app.route("/", receiptRoutes(db, storage, jobs));
+  app.route("/", receiptRoutes(db, storage, jobs, env));
 
   app.get(
     "/openapi.json",

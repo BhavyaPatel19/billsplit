@@ -11,6 +11,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+import { users } from "./auth.js";
 import { groups, participants } from "./groups.js";
 
 /**
@@ -35,6 +36,13 @@ export const receipts = pgTable(
       .notNull()
       .references(() => groups.id, { onDelete: "cascade" }),
     uploadedBy: uuid().references(() => participants.id, { onDelete: "set null" }),
+    /**
+     * Account that started the receipt, for the daily scan cap. Kept separately from
+     * `uploadedBy` so leaving a group does not reset the count.
+     */
+    requestedByUserId: text().references(() => users.id, { onDelete: "set null" }),
+    /** Built-in sample (see RECEIPT_SAMPLES); rendered and extracted without a paid provider. */
+    sampleId: text(),
     status: receiptStatus().notNull().default("awaiting_upload"),
     /** Content type the client declared and the presigned PUT is signed for. */
     contentType: text().notNull(),
@@ -59,6 +67,7 @@ export const receipts = pgTable(
   },
   (t) => [
     index("receipts_group_created_idx").on(t.groupId, t.createdAt),
+    index("receipts_requester_created_idx").on(t.requestedByUserId, t.createdAt),
     check("receipts_size_positive", sql`${t.sizeBytes} > 0`),
   ],
 );

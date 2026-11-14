@@ -9,6 +9,7 @@ import {
 } from "@billsplit/contracts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { fetchMeta } from "@/lib/api";
 import { money } from "@/lib/money";
 import { serverApi } from "@/lib/server-api";
 import { BalancesPanel } from "./balances-panel";
@@ -24,11 +25,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function GroupPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [group, list, balances, receiptList] = await Promise.all([
+  const [group, list, balances, receiptList, meta] = await Promise.all([
     serverApi(`/groups/${id}`, GroupDetailSchema),
     serverApi(`/groups/${id}/expenses`, ExpenseListResponseSchema),
     serverApi(`/groups/${id}/balances`, BalancesResponseSchema),
     serverApi(`/groups/${id}/receipts`, ReceiptListResponseSchema),
+    fetchMeta(),
   ]);
   if (!group || !list || !balances || !receiptList) notFound();
 
@@ -101,7 +103,13 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
             )}
           </div>
 
-          <ReceiptsPanel group={group} initialReceipts={receiptList.receipts} />
+          <ReceiptsPanel
+            group={group}
+            initialReceipts={receiptList.receipts}
+            uploadsEnabled={meta.features.receiptUploads}
+            samplesEnabled={meta.features.receiptSamples}
+            scansPerDay={meta.limits.receiptScansPerDay}
+          />
         </div>
       </section>
     </div>

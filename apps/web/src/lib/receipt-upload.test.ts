@@ -21,6 +21,7 @@ const makeReceipt = (status: Receipt["status"]): Receipt => ({
   uploadedBy: UPLOADER_ID,
   imageUrl: null,
   thumbnailUrl: null,
+  sampleId: null,
   ocr: null,
   error: null,
   createdAt: "2026-11-13T18:00:00.000Z",

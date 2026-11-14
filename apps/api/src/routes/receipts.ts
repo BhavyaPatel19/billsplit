@@ -1,19 +1,22 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNotNull, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute, resolver } from "hono-openapi";
 import { schema, type Db } from "@billsplit/db";
 import {
   CreateReceiptBodySchema,
   CreateReceiptResponseSchema,
+  CreateSampleReceiptBodySchema,
   RECEIPT_MAX_BYTES,
   ReceiptListResponseSchema,
   ReceiptOcrSchema,
+  ReceiptSampleIdSchema,
   ReceiptSchema,
   type Receipt,
   type ReceiptContentType,
 } from "@billsplit/contracts";
 import { receiptKeys, type ReceiptStorage } from "@billsplit/storage";
+import type { Env } from "../env.js";
 import type { ReceiptJobs } from "../jobs.js";
 import { requireMembership } from "../lib/authorize.js";
 import { ApiError, badRequest, conflict, forbidden, notFound } from "../lib/errors.js";
@@ -29,12 +32,23 @@ const PUT_TTL_SECONDS = 10 * 60;
 /** Viewing links are re-signed on every read. */
 const GET_TTL_SECONDS = 5 * 60;
 const LIST_LIMIT = 50;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Row = typeof schema.receipts.$inferSelect;
+type NewRow = typeof schema.receipts.$inferInsert;
+type Limits = Pick<
+  Env,
+  "RECEIPTS_DEMO_MODE" | "RECEIPT_DAILY_SCAN_LIMIT" | "RECEIPT_DAILY_SAMPLE_LIMIT"
+>;
 
-export function receiptRoutes(db: Db, storage: ReceiptStorage | null, jobs: ReceiptJobs) {
+export function receiptRoutes(
+  db: Db,
+  storage: ReceiptStorage | null,
+  jobs: ReceiptJobs,
+  limits: Limits,
+) {
   const router = new Hono<{ Variables: SessionVariables }>();
   router.use("/groups/:id/receipts", requireSession);
   router.use("/groups/:id/receipts/*", requireSession);
@@ -57,6 +71,7 @@ export function receiptRoutes(db: Db, storage: ReceiptStorage | null, jobs: Rece
       uploadedBy: r.uploadedBy,
       imageUrl,
       thumbnailUrl,
+      sampleId: ReceiptSampleIdSchema.nullable().parse(r.sampleId),
       ocr: r.ocr === null || r.ocr === undefined ? null : ReceiptOcrSchema.parse(r.ocr),
       error: r.error,
       createdAt: r.createdAt.toISOString(),
@@ -76,6 +91,39 @@ export function receiptRoutes(db: Db, storage: ReceiptStorage | null, jobs: Rece
     return row;
   };
 
+  /**
+   * Inserts the receipt only while the user is under their rolling 24-hour cap. Photo uploads
+   * and samples are counted separately. The advisory lock serialises one user's concurrent
+   * requests, so two tabs cannot both take the last slot.
+   */
+  const insertWithinCap = (userId: string, values: NewRow): Promise<Row> => {
+    const isSample = values.sampleId != null;
+    const limit = isSample ? limits.RECEIPT_DAILY_SAMPLE_LIMIT : limits.RECEIPT_DAILY_SCAN_LIMIT;
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`receipts:${userId}`}))`);
+      const [usage] = await tx
+        .select({ used: count() })
+        .from(schema.receipts)
+        .where(
+          and(
+            eq(schema.receipts.requestedByUserId, userId),
+            gte(schema.receipts.createdAt, new Date(Date.now() - DAY_MS)),
+            isSample ? isNotNull(schema.receipts.sampleId) : isNull(schema.receipts.sampleId),
+          ),
+        );
+      if ((usage?.used ?? 0) >= limit) {
+        throw new ApiError(
+          429,
+          isSample
+            ? `You can add ${limit} sample receipts per day. Try again tomorrow.`
+            : `You can scan ${limit} receipts per day. Try again tomorrow, or try a sample receipt.`,
+        );
+      }
+      const [row] = await tx.insert(schema.receipts).values(values).returning();
+      return row!;
+    });
+  };
+
   router.post(
     "/groups/:id/receipts",
     describeRoute({
@@ -86,35 +134,36 @@ export function receiptRoutes(db: Db, storage: ReceiptStorage | null, jobs: Rece
         "the declared content type and exact size. PUT the file there, then call `complete`.",
       responses: {
         201: { description: "Created", content: json(CreateReceiptResponseSchema) },
+        403: { description: "Photo uploads are turned off (demo mode)" },
+        429: { description: "Daily scan limit reached" },
         503: { description: "Uploads are not configured" },
       },
     }),
     validate("json", CreateReceiptBodySchema),
     async (c) => {
       const s = store();
-      const { group, me } = await requireMembership(
-        db,
-        c.get("session")!.user.id,
-        c.req.param("id"),
-      );
+      const userId = c.get("session")!.user.id;
+      const { group, me } = await requireMembership(db, userId, c.req.param("id"));
+      if (limits.RECEIPTS_DEMO_MODE) {
+        throw forbidden("Photo uploads are turned off in this demo. Try a sample receipt instead.");
+      }
       const body = c.req.valid("json");
       const id = randomUUID();
       const keys = receiptKeys(group.id, id);
+      const row = await insertWithinCap(userId, {
+        id,
+        groupId: group.id,
+        uploadedBy: me.id,
+        requestedByUserId: userId,
+        contentType: body.contentType,
+        sizeBytes: body.sizeBytes,
+        originalKey: keys.original,
+      });
+      // Signed only once a slot is taken, so a refused request never gets a usable URL.
       const upload = await s.presignPut(keys.original, body, PUT_TTL_SECONDS);
-      const [row] = await db
-        .insert(schema.receipts)
-        .values({
-          id,
-          groupId: group.id,
-          uploadedBy: me.id,
-          contentType: body.contentType,
-          sizeBytes: body.sizeBytes,
-          originalKey: keys.original,
-        })
-        .returning();
       return c.json(
         {
-          receipt: await toReceipt(row!),
+          receipt: await toReceipt(row),
           upload: {
             ...upload,
             method: "PUT" as const,
@@ -123,6 +172,44 @@ export function receiptRoutes(db: Db, storage: ReceiptStorage | null, jobs: Rece
         },
         201,
       );
+    },
+  );
+
+  router.post(
+    "/groups/:id/receipts/samples",
+    describeRoute({
+      tags: ["receipts"],
+      summary: "Add a built-in sample receipt",
+      description:
+        "Queues one of the sample receipts for processing. The worker renders the image and " +
+        "extracts it with a fixture, so no paid OCR call is made. Works in demo mode.",
+      responses: {
+        201: { description: "Created", content: json(ReceiptSchema) },
+        429: { description: "Daily sample limit reached" },
+        503: { description: "Receipts are not configured" },
+      },
+    }),
+    validate("json", CreateSampleReceiptBodySchema),
+    async (c) => {
+      store();
+      const userId = c.get("session")!.user.id;
+      const { group, me } = await requireMembership(db, userId, c.req.param("id"));
+      const { sampleId } = c.req.valid("json");
+      const id = randomUUID();
+      const row = await insertWithinCap(userId, {
+        id,
+        groupId: group.id,
+        uploadedBy: me.id,
+        requestedByUserId: userId,
+        sampleId,
+        status: "uploaded",
+        contentType: "image/jpeg",
+        // Placeholder until the worker renders the image and records its real size.
+        sizeBytes: 1,
+        originalKey: receiptKeys(group.id, id).original,
+      });
+      await jobs.enqueueProcess(row.id);
+      return c.json(await toReceipt(row), 201);
     },
   );
 

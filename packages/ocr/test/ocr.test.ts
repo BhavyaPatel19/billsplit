@@ -9,7 +9,9 @@ import {
   OcrRefusalError,
   SERVER_FALLBACK_BETA,
   createOcrProvider,
+  getReceiptSample,
   reconcileReceiptExtraction,
+  renderSampleReceiptSvg,
   type BetaMessagesParser,
 } from "../src/index.js";
 
@@ -285,5 +287,22 @@ describe("createOcrProvider", () => {
     expect(createOcrProvider().name).toBe("fixture");
     expect(createOcrProvider({ apiKey: "sk-ant-test" }).name).toBe("claude");
     expect(createOcrProvider({ provider: "fixture", apiKey: "sk-ant-test" }).name).toBe("fixture");
+  });
+});
+
+describe("sample receipts", () => {
+  it("resolves built-in samples and renders valid SVG with intentional grocery discrepancy", () => {
+    const bistro = getReceiptSample("bistro-dinner");
+    expect(bistro).not.toBeNull();
+    expect(reconcileReceiptExtraction(bistro!.extraction).matches).toBe(true);
+
+    const grocery = getReceiptSample("grocery-run");
+    expect(grocery).not.toBeNull();
+    expect(reconcileReceiptExtraction(grocery!.extraction).discrepancyCents).toBe(100);
+
+    const svg = renderSampleReceiptSvg("taco-night");
+    expect(svg).toContain("<svg");
+    expect(svg).toContain("Sunset Tacos");
+    expect(getReceiptSample("non-existent")).toBeNull();
   });
 });

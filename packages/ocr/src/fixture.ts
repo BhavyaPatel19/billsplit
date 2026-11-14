@@ -1,40 +1,9 @@
 import type { ReceiptExtraction } from "@billsplit/contracts";
+import { RECEIPT_SAMPLE_EXTRACTIONS } from "./samples.js";
 import type { OcrExtractInput, OcrProvider, OcrResult } from "./types.js";
 
-const DEFAULT_EXTRACTION: ReceiptExtraction = {
-  merchant: "Corner Bistro",
-  date: "2026-11-10",
-  currency: "USD",
-  items: [
-    {
-      description: "Margherita Pizza",
-      quantity: 1,
-      unitPriceCents: 1800,
-      totalPriceCents: 1800,
-      confidence: "high",
-    },
-    {
-      description: "Pasta Carbonara",
-      quantity: 2,
-      unitPriceCents: 1650,
-      totalPriceCents: 3300,
-      confidence: "high",
-    },
-    {
-      description: "Sparkling Water",
-      quantity: 2,
-      unitPriceCents: 450,
-      totalPriceCents: 900,
-      confidence: "medium",
-    },
-  ],
-  subtotalCents: 6000,
-  taxCents: 540,
-  tipCents: 1080,
-  feeCents: null,
-  discountCents: null,
-  totalCents: 7620,
-};
+/** Real uploads without an API key get the bistro sample, which reconciles. */
+const DEFAULT_EXTRACTION: ReceiptExtraction = RECEIPT_SAMPLE_EXTRACTIONS["bistro-dinner"];
 
 export interface FixtureOcrOptions {
   extraction?:

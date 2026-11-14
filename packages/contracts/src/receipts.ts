@@ -30,6 +30,23 @@ export const CreateReceiptBodySchema = z.object({
 });
 export type CreateReceiptBody = z.infer<typeof CreateReceiptBodySchema>;
 
+/**
+ * Built-in sample receipts. The worker renders them itself and extracts them with a fixture,
+ * so trying the app never spends Anthropic credit. `grocery-run` deliberately does not add up,
+ * to show the review flow.
+ */
+export const RECEIPT_SAMPLES = [
+  { id: "bistro-dinner", title: "Dinner at Corner Bistro", summary: "3 dishes, tax and tip" },
+  { id: "taco-night", title: "Taco night", summary: "Fees and a discount" },
+  { id: "grocery-run", title: "Grocery run", summary: "Totals don't add up" },
+] as const;
+
+export const ReceiptSampleIdSchema = z.enum(["bistro-dinner", "taco-night", "grocery-run"]);
+export type ReceiptSampleId = z.infer<typeof ReceiptSampleIdSchema>;
+
+export const CreateSampleReceiptBodySchema = z.object({ sampleId: ReceiptSampleIdSchema });
+export type CreateSampleReceiptBody = z.infer<typeof CreateSampleReceiptBodySchema>;
+
 export const OcrConfidenceSchema = z.enum(["high", "medium", "low"]);
 export type OcrConfidence = z.infer<typeof OcrConfidenceSchema>;
 
@@ -102,6 +119,8 @@ export const ReceiptSchema = z.object({
   /** Short-lived signed GET URLs, present once the worker has produced the images. */
   imageUrl: z.url().nullable(),
   thumbnailUrl: z.url().nullable(),
+  /** Set for built-in sample receipts, which are never sent to a paid OCR provider. */
+  sampleId: ReceiptSampleIdSchema.nullable(),
   ocr: ReceiptOcrSchema.nullable(),
   error: z.string().nullable(),
   createdAt: z.iso.datetime(),

@@ -12,6 +12,7 @@ export {
 export { FixtureOcrProvider, type FixtureOcrOptions } from "./fixture.js";
 export { ratesForModel, summarizeBetaUsage } from "./pricing.js";
 export { reconcileReceiptExtraction } from "./reconcile.js";
+export { RECEIPT_SAMPLE_EXTRACTIONS, getReceiptSample, renderSampleReceiptSvg } from "./samples.js";
 export {
   OcrParseError,
   OcrRefusalError,

@@ -3,8 +3,11 @@ import sharp from "sharp";
 import type { ReceiptOcr } from "@billsplit/contracts";
 import { schema, type Db } from "@billsplit/db";
 import {
+  FixtureOcrProvider,
   OcrRefusalError,
+  getReceiptSample,
   reconcileReceiptExtraction,
+  renderSampleReceiptSvg,
   type OcrProvider,
   type OcrResult,
 } from "@billsplit/ocr";
@@ -115,8 +118,17 @@ export async function processReceipt(
     return "failed";
   };
 
-  const original = await storage.get(receipt.originalKey);
+  // Samples are drawn here and "extracted" from their known values: never a paid OCR call.
+  const sample = receipt.sampleId === null ? null : getReceiptSample(receipt.sampleId);
+  if (receipt.sampleId !== null && !sample) return fail("Unknown sample receipt");
+
+  const original = sample
+    ? Buffer.from(renderSampleReceiptSvg(sample.id))
+    : await storage.get(receipt.originalKey);
   if (!original) return fail("The uploaded file is no longer in storage");
+  const provider: OcrProvider = sample
+    ? new FixtureOcrProvider({ extraction: sample.extraction, model: `sample:${sample.id}` })
+    : ocr;
 
   let derived: Awaited<ReturnType<typeof deriveImages>>;
   try {
@@ -134,7 +146,7 @@ export async function processReceipt(
 
   let ocrResult: OcrResult;
   try {
-    ocrResult = await ocr.extract({ image: derived.image, mediaType: "image/jpeg" });
+    ocrResult = await provider.extract({ image: derived.image, mediaType: "image/jpeg" });
   } catch (err) {
     if (err instanceof OcrRefusalError) {
       return fail("This image cannot be processed as a receipt");
@@ -159,6 +171,8 @@ export async function processReceipt(
       thumbnailKey: keys.thumbnail,
       ocr: ocrPayload,
       ocrCostMicroUsd: ocrResult.usage.costMicroUsd,
+      // A sample has no upload, so its size is that of the rendered image.
+      ...(sample ? { sizeBytes: derived.image.byteLength } : {}),
       error: null,
     })
     .where(eq(schema.receipts.id, receiptId));

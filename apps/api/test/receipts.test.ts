@@ -9,11 +9,12 @@ import {
   GroupDetailSchema,
   InviteSchema,
   ReceiptListResponseSchema,
+  MetaResponseSchema,
   ReceiptSchema,
   RECEIPT_MAX_BYTES,
   type CreateReceiptResponse,
 } from "@billsplit/contracts";
-import { createApp } from "../src/app.js";
+import { createApp, type App } from "../src/app.js";
 import { createAuth } from "../src/auth.js";
 import { InMemoryMailer } from "../src/email.js";
 import { request, signUpVerified, startTestContext, type TestContext } from "./helpers.js";
@@ -212,4 +213,115 @@ it("answers 503 when no bucket is configured", async () => {
     body: { contentType: "image/jpeg", sizeBytes: 10 },
   });
   expect(res.status).toBe(503);
+});
+
+/** The same database and storage, with different receipt settings. */
+function appWith(overrides: Partial<TestContext["env"]>): App {
+  const env = { ...ctx.env, ...overrides };
+  const logger = pino({ enabled: false });
+  const auth = createAuth({ env, db: ctx.db.db, mailer: new InMemoryMailer(), logger });
+  return createApp({ env, logger, db: ctx.db.db, auth, storage: ctx.storage, jobs: ctx.jobs });
+}
+
+describe("sample receipts", () => {
+  it("are queued straight away, marked as samples, with no upload", async () => {
+    const res = await api(`/api/groups/${groupId}/receipts/samples`, {
+      cookie: bo,
+      body: { sampleId: "taco-night" },
+    });
+    expect(res.status).toBe(201);
+    const receipt = ReceiptSchema.parse(await res.json());
+    expect(receipt.status).toBe("uploaded");
+    expect(receipt.sampleId).toBe("taco-night");
+    expect(ctx.jobs.queued).toContain(receipt.id);
+  });
+
+  it("refuses unknown samples and non-members", async () => {
+    const bad = await api(`/api/groups/${groupId}/receipts/samples`, {
+      cookie: bo,
+      body: { sampleId: "free-lunch" },
+    });
+    expect(bad.status).toBe(400);
+    const outside = await api(`/api/groups/${groupId}/receipts/samples`, {
+      cookie: outsider,
+      body: { sampleId: "taco-night" },
+    });
+    expect(outside.status).toBe(404);
+  });
+});
+
+describe("abuse limits", () => {
+  it("caps photo uploads per user per day, separately from samples, without signing a URL", async () => {
+    const app = appWith({ RECEIPT_DAILY_SCAN_LIMIT: 1, RECEIPT_DAILY_SAMPLE_LIMIT: 1 });
+    const cookie = await signUpVerified(ctx, "Cy", "cy@example.com");
+    const group = GroupDetailSchema.parse(
+      await (await request(app, "/api/groups", { cookie, body: { name: "Cy's" } })).json(),
+    ).id;
+    const scan = () =>
+      request(app, `/api/groups/${group}/receipts`, {
+        cookie,
+        body: { contentType: "image/jpeg", sizeBytes: 100 },
+      });
+    const sample = () =>
+      request(app, `/api/groups/${group}/receipts/samples`, {
+        cookie,
+        body: { sampleId: "bistro-dinner" },
+      });
+
+    expect((await scan()).status).toBe(201);
+    const refused = await scan();
+    expect(refused.status).toBe(429);
+    expect(((await refused.json()) as { error: string }).error).toMatch(/1 receipts per day/);
+
+    expect((await sample()).status).toBe(201);
+    expect((await sample()).status).toBe(429);
+
+    const rows = await ctx.db.db
+      .select()
+      .from(schema.receipts)
+      .where(eq(schema.receipts.groupId, group));
+    expect(rows).toHaveLength(2);
+  });
+
+  it("counts every group the user is in, and receipts older than a day no longer count", async () => {
+    const app = appWith({ RECEIPT_DAILY_SCAN_LIMIT: 1 });
+    const cookie = await signUpVerified(ctx, "Di", "di@example.com");
+    const make = async (name: string) =>
+      GroupDetailSchema.parse(
+        await (await request(app, "/api/groups", { cookie, body: { name } })).json(),
+      ).id;
+    const [g1, g2] = [await make("One"), await make("Two")];
+    const scan = (group: string) =>
+      request(app, `/api/groups/${group}/receipts`, {
+        cookie,
+        body: { contentType: "image/jpeg", sizeBytes: 100 },
+      });
+
+    const first = CreateReceiptResponseSchema.parse(await (await scan(g1)).json());
+    expect((await scan(g2)).status).toBe(429);
+
+    await ctx.db.db
+      .update(schema.receipts)
+      .set({ createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) })
+      .where(eq(schema.receipts.id, first.receipt.id));
+    expect((await scan(g2)).status).toBe(201);
+  });
+
+  it("demo mode refuses photo uploads but still serves samples, and says so in /meta", async () => {
+    const app = appWith({ RECEIPTS_DEMO_MODE: true, RECEIPTS_BUCKET: "test-bucket" });
+    const upload = await request(app, `/api/groups/${groupId}/receipts`, {
+      cookie: ana,
+      body: { contentType: "image/jpeg", sizeBytes: 100 },
+    });
+    expect(upload.status).toBe(403);
+    const sample = await request(app, `/api/groups/${groupId}/receipts/samples`, {
+      cookie: ana,
+      body: { sampleId: "grocery-run" },
+    });
+    expect(sample.status).toBe(201);
+
+    const meta = MetaResponseSchema.parse(await (await request(app, "/api/meta")).json());
+    expect(meta.features.receiptUploads).toBe(false);
+    expect(meta.features.receiptSamples).toBe(true);
+  });
 });
