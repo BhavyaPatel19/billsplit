@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { evaluateDraft, evenPercents, type ExpenseDraft, type LineDraft } from "./expense-draft";
+import type { GroupDetail, Receipt } from "@billsplit/contracts";
+import {
+  evaluateDraft,
+  evenPercents,
+  formatInputAmount,
+  receiptToExpenseDraft,
+  type ExpenseDraft,
+  type LineDraft,
+} from "./expense-draft";
 
 const A = "11111111-1111-4111-8111-111111111111";
 const B = "22222222-2222-4222-8222-222222222222";
@@ -15,6 +23,7 @@ const base = (patch: Partial<ExpenseDraft> = {}): ExpenseDraft => ({
   lines: [],
   tax: "",
   tip: "",
+  fee: "",
   discount: "",
   ...patch,
 });
@@ -172,5 +181,218 @@ describe("evenPercents", () => {
     }
     expect(evenPercents(["a", "b", "c"])).toEqual({ a: "33.33", b: "33.33", c: "33.34" });
     expect(evenPercents([])).toEqual({});
+  });
+});
+
+describe("formatInputAmount", () => {
+  it("formats cents using currency decimal digits", () => {
+    expect(formatInputAmount(6000, 2)).toBe("60.00");
+    expect(formatInputAmount(5, 2)).toBe("0.05");
+    expect(formatInputAmount(-125, 2)).toBe("-1.25");
+    expect(formatInputAmount(1200, 0)).toBe("1200");
+  });
+});
+
+describe("receiptToExpenseDraft", () => {
+  const group: GroupDetail = {
+    id: "44444444-4444-4444-8444-444444444444",
+    name: "Dinner",
+    currency: "USD",
+    memberCount: 3,
+    createdAt: "2026-11-08T00:00:00Z",
+    myRole: "owner",
+    myParticipantId: A,
+    participants: [
+      {
+        id: A,
+        displayName: "A",
+        userId: null,
+        role: "owner",
+        isPlaceholder: false,
+        isMe: true,
+        createdAt: "2026-11-08T00:00:00Z",
+      },
+      {
+        id: B,
+        displayName: "B",
+        userId: null,
+        role: "member",
+        isPlaceholder: false,
+        isMe: false,
+        createdAt: "2026-11-08T00:00:00Z",
+      },
+      {
+        id: R,
+        displayName: "R",
+        userId: null,
+        role: "member",
+        isPlaceholder: false,
+        isMe: false,
+        createdAt: "2026-11-08T00:00:00Z",
+      },
+    ],
+  };
+
+  it("maps items, integer quantities, fees, and adjustments into an itemized draft", () => {
+    const receipt: Receipt = {
+      id: "55555555-5555-4555-8555-555555555555",
+      groupId: group.id,
+      status: "ready",
+      contentType: "image/jpeg",
+      sizeBytes: 1024,
+      uploadedBy: A,
+      imageUrl: "https://example.com/receipt.jpg",
+      thumbnailUrl: "https://example.com/receipt-thumb.jpg",
+      sampleId: null,
+      error: null,
+      createdAt: "2026-11-08T00:00:00Z",
+      updatedAt: "2026-11-08T00:00:05Z",
+      ocr: {
+        provider: "claude",
+        model: "claude-test",
+        merchant: "La Taqueria",
+        date: "2026-11-08",
+        currency: "USD",
+        items: [
+          {
+            description: "Street Tacos",
+            quantity: 3,
+            unitPriceCents: 400,
+            totalPriceCents: 1200,
+            confidence: "high",
+          },
+          {
+            description: "Bananas",
+            quantity: 1.5,
+            unitPriceCents: 200,
+            totalPriceCents: 300,
+            confidence: "medium",
+          },
+          {
+            description: "2-for-5 Cookies",
+            quantity: 2,
+            unitPriceCents: null,
+            totalPriceCents: 500,
+            confidence: "high",
+          },
+        ],
+        subtotalCents: 2000,
+        taxCents: 160,
+        tipCents: 300,
+        feeCents: 250,
+        discountCents: 100,
+        totalCents: 2610,
+        reconciliation: {
+          matches: true,
+          itemsSumCents: 2000,
+          computedTotalCents: 2610,
+          discrepancyCents: 0,
+          reason: null,
+        },
+      },
+    };
+
+    let n = 0;
+    const draft = receiptToExpenseDraft(receipt, group, () => `k${++n}`);
+    expect(draft.mode).toBe("itemized");
+    expect(draft.description).toBe("La Taqueria");
+    expect(draft.spentOn).toBe("2026-11-08");
+    expect(draft.payerId).toBe(A);
+    expect(draft.tax).toBe("1.60");
+    expect(draft.tip).toBe("3.00");
+    expect(draft.fee).toBe("2.50");
+    expect(draft.discount).toBe("1.00");
+    expect(draft.lines).toEqual([
+      {
+        key: "k1",
+        name: "Street Tacos",
+        amount: "4.00",
+        quantity: "3",
+        split: { kind: "equal", people: [A, B, R], values: {} },
+      },
+      {
+        key: "k2",
+        name: "Bananas (1.5x)",
+        amount: "3.00",
+        quantity: "1",
+        split: { kind: "equal", people: [A, B, R], values: {} },
+      },
+      {
+        key: "k3",
+        name: "2-for-5 Cookies",
+        amount: "2.50",
+        quantity: "2",
+        split: { kind: "equal", people: [A, B, R], values: {} },
+      },
+    ]);
+
+    const evaluated = evaluateDraft(draft, "USD", 2);
+    expect(evaluated.ok).toBe(true);
+    if (!evaluated.ok) throw new Error(evaluated.error);
+    expect(evaluated.total).toBe(2610);
+    expect(evaluated.input.adjustments).toEqual([
+      { kind: "tax", amountCents: 160, allocation: "proportional" },
+      { kind: "tip", amountCents: 300, allocation: "proportional" },
+      { kind: "fee", amountCents: 250, allocation: "proportional" },
+      { kind: "discount", amountCents: 100, allocation: "proportional" },
+    ]);
+  });
+
+  it("folds indivisible integer-quantity bundle prices into quantity 1 so totals stay exact", () => {
+    const receipt: Receipt = {
+      id: "55555555-5555-4555-8555-555555555555",
+      groupId: group.id,
+      status: "needs_review",
+      contentType: "image/jpeg",
+      sizeBytes: 1024,
+      uploadedBy: A,
+      imageUrl: "https://example.com/receipt.jpg",
+      thumbnailUrl: "https://example.com/receipt-thumb.jpg",
+      sampleId: null,
+      error: null,
+      createdAt: "2026-11-08T00:00:00Z",
+      updatedAt: "2026-11-08T00:00:00Z",
+      ocr: {
+        provider: "claude",
+        model: "claude-test",
+        merchant: null,
+        date: null,
+        currency: null,
+        items: [
+          {
+            description: "3-pack Wings",
+            quantity: 3,
+            unitPriceCents: null,
+            totalPriceCents: 1000,
+            confidence: "medium",
+          },
+        ],
+        subtotalCents: 1000,
+        taxCents: null,
+        tipCents: null,
+        feeCents: null,
+        discountCents: null,
+        totalCents: 1000,
+        reconciliation: {
+          matches: true,
+          itemsSumCents: 1000,
+          computedTotalCents: 1000,
+          discrepancyCents: 0,
+          reason: null,
+        },
+      },
+    };
+
+    const draft = receiptToExpenseDraft(receipt, group, () => "k1");
+    expect(draft.description).toBe("Receipt");
+    expect(draft.lines[0]).toMatchObject({
+      name: "3-pack Wings (3x)",
+      amount: "10.00",
+      quantity: "1",
+    });
+    const evaluated = evaluateDraft(draft, "USD", 2);
+    expect(evaluated.ok).toBe(true);
+    if (!evaluated.ok) throw new Error(evaluated.error);
+    expect(evaluated.total).toBe(1000);
   });
 });

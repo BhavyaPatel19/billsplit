@@ -12,8 +12,11 @@ import {
   ReceiptOcrSchema,
   ReceiptSampleIdSchema,
   ReceiptSchema,
+  UpdateReceiptOcrBodySchema,
+  reconcileReceiptExtraction,
   type Receipt,
   type ReceiptContentType,
+  type ReceiptOcr,
 } from "@billsplit/contracts";
 import { receiptKeys, type ReceiptStorage } from "@billsplit/storage";
 import type { Env } from "../env.js";
@@ -297,6 +300,44 @@ export function receiptRoutes(
     async (c) => {
       const { group } = await requireMembership(db, c.get("session")!.user.id, c.req.param("id"));
       return c.json(await toReceipt(await findInGroup(group.id, c.req.param("receiptId"))), 200);
+    },
+  );
+
+  router.patch(
+    "/groups/:id/receipts/:receiptId",
+    describeRoute({
+      tags: ["receipts"],
+      summary: "Update reviewed OCR lines and recompute totals reconciliation",
+      responses: {
+        200: { description: "Updated", content: json(ReceiptSchema) },
+        409: { description: "Receipt has not finished OCR processing yet" },
+      },
+    }),
+    validate("json", UpdateReceiptOcrBodySchema),
+    async (c) => {
+      const { group } = await requireMembership(db, c.get("session")!.user.id, c.req.param("id"));
+      const row = await findInGroup(group.id, c.req.param("receiptId"));
+      if ((row.status !== "ready" && row.status !== "needs_review") || !row.ocr) {
+        throw conflict("Wait until processing finishes before reviewing this receipt");
+      }
+
+      const existing = ReceiptOcrSchema.parse(row.ocr);
+      const extraction = c.req.valid("json");
+      const reconciliation = reconcileReceiptExtraction(extraction);
+      const nextOcr: ReceiptOcr = {
+        ...extraction,
+        reconciliation,
+        model: existing.model,
+        provider: existing.provider,
+      };
+      const nextStatus = reconciliation.matches ? "ready" : "needs_review";
+
+      const [updated] = await db
+        .update(schema.receipts)
+        .set({ ocr: nextOcr, status: nextStatus })
+        .where(eq(schema.receipts.id, row.id))
+        .returning();
+      return c.json(await toReceipt(updated!), 200);
     },
   );
 

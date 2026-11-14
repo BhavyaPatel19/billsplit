@@ -11,6 +11,7 @@ import {
   Sparkles,
   Upload,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
@@ -347,16 +348,34 @@ export function ReceiptsPanel({
                     ) : null}
                   </div>
                 </div>
-                {r.imageUrl ? (
-                  <a
-                    href={r.imageUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-                  >
-                    View <ExternalLink className="size-3.5" aria-hidden />
-                  </a>
-                ) : null}
+                <div className="flex shrink-0 flex-wrap items-center gap-3">
+                  {r.ocr ? (
+                    <>
+                      <Link
+                        href={`/groups/${group.id}/receipts/${r.id}`}
+                        className="text-xs font-medium text-zinc-700 hover:underline dark:text-zinc-300"
+                      >
+                        {r.status === "needs_review" ? "Fix & review" : "Review"}
+                      </Link>
+                      <Link
+                        href={`/groups/${group.id}/expenses/new?receiptId=${r.id}`}
+                        className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+                      >
+                        Split items
+                      </Link>
+                    </>
+                  ) : null}
+                  {r.imageUrl ? (
+                    <a
+                      href={r.imageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+                    >
+                      View <ExternalLink className="size-3.5" aria-hidden />
+                    </a>
+                  ) : null}
+                </div>
               </li>
             );
           })}

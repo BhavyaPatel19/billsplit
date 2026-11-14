@@ -325,3 +325,125 @@ describe("abuse limits", () => {
     expect(meta.features.receiptSamples).toBe(true);
   });
 });
+
+describe("reviewing OCR extraction", () => {
+  const SAMPLE_OCR = {
+    merchant: "Greenleaf Market",
+    date: "2026-11-11",
+    currency: "USD",
+    items: [
+      {
+        description: "Free-range Eggs",
+        quantity: 1,
+        unitPriceCents: null,
+        totalPriceCents: 599,
+        confidence: "low" as const,
+      },
+    ],
+    subtotalCents: 699,
+    taxCents: null,
+    tipCents: null,
+    feeCents: null,
+    discountCents: null,
+    totalCents: 699,
+    reconciliation: {
+      matches: false,
+      itemsSumCents: 599,
+      computedTotalCents: 599,
+      discrepancyCents: 100,
+      reason: "Items + adjustments (599) do not equal total (699)",
+    },
+    model: "sample:grocery-run",
+    provider: "fixture" as const,
+  };
+
+  it("recomputes reconciliation and promotes needs_review -> ready when corrected", async () => {
+    const { receipt } = await start();
+    await ctx.db.db
+      .update(schema.receipts)
+      .set({ status: "needs_review", ocr: SAMPLE_OCR })
+      .where(eq(schema.receipts.id, receipt.id));
+
+    const fixed = await api(`/api/groups/${groupId}/receipts/${receipt.id}`, {
+      method: "PATCH",
+      cookie: bo,
+      body: {
+        merchant: "Greenleaf Market",
+        date: "2026-11-11",
+        currency: "USD",
+        items: [
+          {
+            description: "Free-range Eggs",
+            quantity: 1,
+            unitPriceCents: 699,
+            totalPriceCents: 699,
+            confidence: "high",
+          },
+        ],
+        subtotalCents: 699,
+        taxCents: null,
+        tipCents: null,
+        feeCents: null,
+        discountCents: null,
+        totalCents: 699,
+      },
+    });
+    expect(fixed.status).toBe(200);
+    const updated = ReceiptSchema.parse(await fixed.json());
+    expect(updated.status).toBe("ready");
+    expect(updated.ocr?.reconciliation.matches).toBe(true);
+    expect(updated.ocr?.model).toBe("sample:grocery-run");
+
+    const broken = await api(`/api/groups/${groupId}/receipts/${receipt.id}`, {
+      method: "PATCH",
+      cookie: ana,
+      body: {
+        ...updated.ocr!,
+        totalCents: 800,
+      },
+    });
+    expect(broken.status).toBe(200);
+    const demoted = ReceiptSchema.parse(await broken.json());
+    expect(demoted.status).toBe("needs_review");
+    expect(demoted.ocr?.reconciliation.discrepancyCents).toBe(101);
+  });
+
+  it("rejects review edits before processing completes and hides other groups", async () => {
+    const { receipt } = await start();
+    const pending = await api(`/api/groups/${groupId}/receipts/${receipt.id}`, {
+      method: "PATCH",
+      cookie: ana,
+      body: {
+        merchant: "Cafe",
+        date: null,
+        currency: "USD",
+        items: [],
+        subtotalCents: null,
+        taxCents: null,
+        tipCents: null,
+        feeCents: null,
+        discountCents: null,
+        totalCents: null,
+      },
+    });
+    expect(pending.status).toBe(409);
+
+    const outside = await api(`/api/groups/${groupId}/receipts/${receipt.id}`, {
+      method: "PATCH",
+      cookie: outsider,
+      body: {
+        merchant: "Cafe",
+        date: null,
+        currency: "USD",
+        items: [],
+        subtotalCents: null,
+        taxCents: null,
+        tipCents: null,
+        feeCents: null,
+        discountCents: null,
+        totalCents: null,
+      },
+    });
+    expect(outside.status).toBe(404);
+  });
+});

@@ -1,9 +1,10 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { ExternalLink, Plus, ReceiptText, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ExpenseDetailSchema, type GroupDetail } from "@billsplit/contracts";
+import { ExpenseDetailSchema, type GroupDetail, type Receipt } from "@billsplit/contracts";
 import { currencyDigits } from "@billsplit/split-engine";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { ApiClientError } from "@/lib/api-client";
 import {
   evaluateDraft,
   evenPercents,
+  receiptToExpenseDraft,
   type ExpenseDraft,
   type LineDraft,
   type SplitDraft,
@@ -25,7 +27,13 @@ const inputClass =
 let keyCounter = 0;
 const newKey = () => `line-${++keyCounter}`;
 
-export function ExpenseForm({ group }: { group: GroupDetail }) {
+export function ExpenseForm({
+  group,
+  initialReceipt = null,
+}: {
+  group: GroupDetail;
+  initialReceipt?: Receipt | null;
+}) {
   const router = useRouter();
   const everyone = group.participants.map((p) => p.id);
   const nameOf = useMemo(
@@ -42,18 +50,23 @@ export function ExpenseForm({ group }: { group: GroupDetail }) {
     split: { kind: "equal", people: everyone, values: {} },
   });
 
-  const [draft, setDraft] = useState<ExpenseDraft>(() => ({
-    mode: "simple",
-    description: "",
-    spentOn: new Date().toISOString().slice(0, 10),
-    payerId: group.myParticipantId,
-    amount: "",
-    split: { kind: "equal", people: everyone, values: {} },
-    lines: [newLine()],
-    tax: "",
-    tip: "",
-    discount: "",
-  }));
+  const [draft, setDraft] = useState<ExpenseDraft>(() =>
+    initialReceipt?.ocr
+      ? receiptToExpenseDraft(initialReceipt, group, newKey)
+      : {
+          mode: "simple",
+          description: "",
+          spentOn: new Date().toISOString().slice(0, 10),
+          payerId: group.myParticipantId,
+          amount: "",
+          split: { kind: "equal", people: everyone, values: {} },
+          lines: [newLine()],
+          tax: "",
+          tip: "",
+          fee: "",
+          discount: "",
+        },
+  );
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -99,9 +112,73 @@ export function ExpenseForm({ group }: { group: GroupDetail }) {
     router.refresh();
   };
 
+  const receiptCurrencyMismatch =
+    initialReceipt?.ocr?.currency &&
+    initialReceipt.ocr.currency.toUpperCase() !== group.currency.toUpperCase();
+
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <div className="flex flex-col gap-6">
+        {initialReceipt ? (
+          <Card className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                {initialReceipt.thumbnailUrl ? (
+                  // Presigned S3/RustFS URLs vary per host and expire quickly, so bypass next/image.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={initialReceipt.thumbnailUrl}
+                    alt="Receipt preview"
+                    className="size-12 rounded border border-zinc-200 object-cover dark:border-zinc-700"
+                  />
+                ) : (
+                  <div className="flex size-12 items-center justify-center rounded border border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-700 dark:bg-zinc-900">
+                    <ReceiptText className="size-5" aria-hidden />
+                  </div>
+                )}
+                <div className="text-sm">
+                  <p className="font-medium">
+                    Prefilled from {initialReceipt.ocr?.merchant ?? "scanned receipt"}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    Tap people on each item to claim what they had.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <Link
+                  href={`/groups/${group.id}/receipts/${initialReceipt.id}`}
+                  className="font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+                >
+                  Review receipt
+                </Link>
+                {initialReceipt.imageUrl ? (
+                  <a
+                    href={initialReceipt.imageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-zinc-600 hover:underline dark:text-zinc-400"
+                  >
+                    Image <ExternalLink className="size-3.5" aria-hidden />
+                  </a>
+                ) : null}
+              </div>
+            </div>
+            {initialReceipt.status === "needs_review" ? (
+              <Alert tone="error">
+                Totals on this receipt did not fully match (
+                {initialReceipt.ocr?.reconciliation.reason ?? "check line items"}). Review it
+                carefully before saving.
+              </Alert>
+            ) : null}
+            {receiptCurrencyMismatch ? (
+              <Alert tone="info">
+                Receipt shows {initialReceipt.ocr?.currency}, while this group uses {group.currency}
+                . Amounts were imported numerically — convert to {group.currency} if needed.
+              </Alert>
+            ) : null}
+          </Card>
+        ) : null}
         <Card className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
             <label className="flex flex-col gap-1.5 text-sm font-medium">
@@ -230,6 +307,7 @@ export function ExpenseForm({ group }: { group: GroupDetail }) {
                   onChange={(split) => setLine(line.key, { split })}
                   everyone={everyone}
                   nameOf={nameOf}
+                  meId={group.myParticipantId}
                   kinds={["equal", "percent"]}
                   compact
                 />
@@ -242,8 +320,8 @@ export function ExpenseForm({ group }: { group: GroupDetail }) {
             >
               <Plus className="size-4" aria-hidden /> Add item
             </Button>
-            <Card className="grid gap-3 sm:grid-cols-3">
-              {(["tax", "tip", "discount"] as const).map((k) => (
+            <Card className="grid gap-3 sm:grid-cols-4">
+              {(["tax", "tip", "fee", "discount"] as const).map((k) => (
                 <label
                   key={k}
                   className="flex flex-col gap-1 text-xs font-medium capitalize text-zinc-600 dark:text-zinc-400"
@@ -258,8 +336,8 @@ export function ExpenseForm({ group }: { group: GroupDetail }) {
                   />
                 </label>
               ))}
-              <p className="text-xs text-zinc-500 sm:col-span-3">
-                Tax, tip and discounts are shared in proportion to what each person had.
+              <p className="text-xs text-zinc-500 sm:col-span-4">
+                Tax, tip, fees and discounts are shared in proportion to what each person had.
               </p>
             </Card>
           </>
@@ -313,6 +391,7 @@ function SplitEditor({
   onChange,
   everyone,
   nameOf,
+  meId,
   kinds,
   compact = false,
 }: {
@@ -320,19 +399,25 @@ function SplitEditor({
   onChange: (d: SplitDraft) => void;
   everyone: string[];
   nameOf: Map<string, string>;
+  meId?: string;
   kinds: Array<SplitDraft["kind"]>;
   compact?: boolean;
 }) {
-  const toggle = (pid: string) => {
-    const people = draft.people.includes(pid)
-      ? draft.people.filter((p) => p !== pid)
-      : everyone.filter((p) => p === pid || draft.people.includes(p));
+  const applyPeople = (people: string[]) =>
     onChange({
       ...draft,
       people,
       values: draft.kind === "percent" ? evenPercents(people) : draft.values,
     });
+  const toggle = (pid: string) => {
+    const people = draft.people.includes(pid)
+      ? draft.people.filter((p) => p !== pid)
+      : everyone.filter((p) => p === pid || draft.people.includes(p));
+    applyPeople(people);
   };
+  const allSelected = everyone.length > 0 && draft.people.length === everyone.length;
+  const onlyMeSelected =
+    meId !== undefined && draft.people.length === 1 && draft.people[0] === meId;
   const setKind = (kind: SplitDraft["kind"]) =>
     onChange({
       ...draft,
@@ -370,6 +455,36 @@ function SplitEditor({
             </button>
           );
         })}
+        {compact ? (
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => applyPeople(everyone)}
+              className={cn(
+                "rounded px-2 py-0.5 text-xs font-medium transition-colors",
+                allSelected
+                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                  : "text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800",
+              )}
+            >
+              Everyone
+            </button>
+            {meId ? (
+              <button
+                type="button"
+                onClick={() => applyPeople([meId])}
+                className={cn(
+                  "rounded px-2 py-0.5 text-xs font-medium transition-colors",
+                  onlyMeSelected
+                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    : "text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800",
+                )}
+              >
+                Just me
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <div className="flex flex-wrap gap-1 text-xs">
         {kinds.map((k) => (
