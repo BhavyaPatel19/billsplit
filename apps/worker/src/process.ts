@@ -1,6 +1,13 @@
 import { and, eq, inArray } from "drizzle-orm";
 import sharp from "sharp";
+import type { ReceiptOcr } from "@billsplit/contracts";
 import { schema, type Db } from "@billsplit/db";
+import {
+  OcrRefusalError,
+  reconcileReceiptExtraction,
+  type OcrProvider,
+  type OcrResult,
+} from "@billsplit/ocr";
 import { receiptKeys, type ReceiptStorage } from "@billsplit/storage";
 import type { Logger } from "./logger.js";
 
@@ -11,12 +18,15 @@ export const THUMBNAIL_PX = 320;
 export interface ProcessDeps {
   db: Db;
   storage: ReceiptStorage;
+  ocr: OcrProvider;
   logger: Logger;
 }
 
 export type ProcessOutcome =
-  /** Images stored, receipt marked ready. */
+  /** Images stored and OCR reconciled; receipt marked ready. */
   | "ready"
+  /** Images stored and OCR saved, but totals did not reconcile; user should review. */
+  | "needs_review"
   /** The file cannot be processed; the receipt is marked failed with a reason for the uploader. */
   | "failed"
   /** Nothing to do: unknown receipt, or already past processing. */
@@ -59,7 +69,7 @@ export async function deriveImages(
  * recorded on the receipt and returned as `"failed"` without throwing.
  */
 export async function processReceipt(
-  { db, storage, logger }: ProcessDeps,
+  { db, storage, ocr, logger }: ProcessDeps,
   receiptId: string,
 ): Promise<ProcessOutcome> {
   const log = logger.child({ receiptId });
@@ -121,21 +131,54 @@ export async function processReceipt(
     storage.put(keys.image, derived.image, "image/jpeg"),
     storage.put(keys.thumbnail, derived.thumbnail, "image/jpeg"),
   ]);
+
+  let ocrResult: OcrResult;
+  try {
+    ocrResult = await ocr.extract({ image: derived.image, mediaType: "image/jpeg" });
+  } catch (err) {
+    if (err instanceof OcrRefusalError) {
+      return fail("This image cannot be processed as a receipt");
+    }
+    throw err;
+  }
+
+  const reconciliation = reconcileReceiptExtraction(ocrResult.extraction);
+  const ocrPayload: ReceiptOcr = {
+    ...ocrResult.extraction,
+    reconciliation,
+    model: ocrResult.model,
+    provider: ocrResult.provider,
+  };
+  const nextStatus = reconciliation.matches ? "ready" : "needs_review";
+
   await db
     .update(schema.receipts)
-    .set({ status: "ready", imageKey: keys.image, thumbnailKey: keys.thumbnail, error: null })
+    .set({
+      status: nextStatus,
+      imageKey: keys.image,
+      thumbnailKey: keys.thumbnail,
+      ocr: ocrPayload,
+      ocrCostMicroUsd: ocrResult.usage.costMicroUsd,
+      error: null,
+    })
     .where(eq(schema.receipts.id, receiptId));
   // Last, so a failure here is retried by the cleanup branch above rather than re-encoding.
   await storage.delete(receipt.originalKey);
 
   log.info(
     {
+      status: nextStatus,
+      model: ocrResult.model,
+      provider: ocrResult.provider,
+      itemCount: ocrResult.extraction.items.length,
+      reconciled: reconciliation.matches,
+      costMicroUsd: ocrResult.usage.costMicroUsd,
       width: derived.width,
       height: derived.height,
       originalBytes: original.byteLength,
       imageBytes: derived.image.byteLength,
     },
-    "receipt ready",
+    "receipt processed",
   );
-  return "ready";
+  return nextStatus;
 }

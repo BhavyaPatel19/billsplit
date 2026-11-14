@@ -30,6 +30,67 @@ export const CreateReceiptBodySchema = z.object({
 });
 export type CreateReceiptBody = z.infer<typeof CreateReceiptBodySchema>;
 
+export const OcrConfidenceSchema = z.enum(["high", "medium", "low"]);
+export type OcrConfidence = z.infer<typeof OcrConfidenceSchema>;
+
+export const ReceiptOcrItemSchema = z.object({
+  description: z.string().describe("Menu or receipt line-item label"),
+  quantity: z.number().positive().describe("Item quantity; default 1 if omitted on receipt"),
+  unitPriceCents: z
+    .number()
+    .int()
+    .nullable()
+    .describe("Unit price in minor currency units (e.g. cents), or null if not shown"),
+  totalPriceCents: z
+    .number()
+    .int()
+    .describe("Extended line-item total price in minor currency units (e.g. cents)"),
+  confidence: OcrConfidenceSchema.describe("Extraction confidence for this line item"),
+});
+export type ReceiptOcrItem = z.infer<typeof ReceiptOcrItemSchema>;
+
+/** Structured fields extracted directly from a receipt image by an OCR provider. */
+export const ReceiptExtractionSchema = z.object({
+  merchant: z.string().nullable().describe("Merchant or restaurant name, or null if unreadable"),
+  date: z.string().nullable().describe("Receipt date in YYYY-MM-DD if shown, else null"),
+  currency: z
+    .string()
+    .nullable()
+    .describe("ISO 4217 3-letter currency code (e.g. USD, EUR), or null if unknown"),
+  items: z.array(ReceiptOcrItemSchema).describe("Individual purchased line items"),
+  subtotalCents: z.number().int().nullable().describe("Printed subtotal in minor units, or null"),
+  taxCents: z.number().int().nullable().describe("Printed tax in minor units, or null"),
+  tipCents: z.number().int().nullable().describe("Printed tip or gratuity in minor units, or null"),
+  feeCents: z
+    .number()
+    .int()
+    .nullable()
+    .describe("Printed service/delivery/surcharge fees in minor units, or null"),
+  discountCents: z
+    .number()
+    .int()
+    .nullable()
+    .describe("Printed discount magnitude subtracted from subtotal in minor units, or null"),
+  totalCents: z.number().int().nullable().describe("Printed grand total in minor units, or null"),
+});
+export type ReceiptExtraction = z.infer<typeof ReceiptExtractionSchema>;
+
+export const ReceiptReconciliationSchema = z.object({
+  matches: z.boolean(),
+  itemsSumCents: z.number().int(),
+  computedTotalCents: z.number().int(),
+  discrepancyCents: z.number().int().nullable(),
+  reason: z.string().nullable(),
+});
+export type ReceiptReconciliation = z.infer<typeof ReceiptReconciliationSchema>;
+
+export const ReceiptOcrSchema = ReceiptExtractionSchema.extend({
+  reconciliation: ReceiptReconciliationSchema,
+  model: z.string(),
+  provider: z.enum(["claude", "fixture"]),
+});
+export type ReceiptOcr = z.infer<typeof ReceiptOcrSchema>;
+
 export const ReceiptSchema = z.object({
   id: z.uuid(),
   groupId: z.uuid(),
@@ -41,6 +102,7 @@ export const ReceiptSchema = z.object({
   /** Short-lived signed GET URLs, present once the worker has produced the images. */
   imageUrl: z.url().nullable(),
   thumbnailUrl: z.url().nullable(),
+  ocr: ReceiptOcrSchema.nullable(),
   error: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),

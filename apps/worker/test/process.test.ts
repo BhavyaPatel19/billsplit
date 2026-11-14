@@ -5,6 +5,8 @@ import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb, runMigrations, schema, type DbHandle } from "@billsplit/db";
 import { InMemoryReceiptStorage, receiptKeys } from "@billsplit/storage";
+import { ReceiptOcrSchema } from "@billsplit/contracts";
+import { FixtureOcrProvider, OcrRefusalError, type OcrProvider } from "@billsplit/ocr";
 import { processReceipt, type ProcessDeps } from "../src/process.js";
 
 let container: StartedPostgreSqlContainer;
@@ -56,7 +58,12 @@ beforeAll(async () => {
     .values({ groupId, displayName: "Ana" })
     .returning({ id: schema.participants.id });
   uploaderId = p!.id;
-  deps = { db: handle.db, storage, logger: pino({ enabled: false }) };
+  deps = {
+    db: handle.db,
+    storage,
+    ocr: new FixtureOcrProvider({ costMicroUsd: 4200 }),
+    logger: pino({ enabled: false }),
+  };
 });
 
 afterAll(async () => {
@@ -74,6 +81,10 @@ describe("processReceipt", () => {
     expect(r.imageKey).toBe(keys.image);
     expect(r.thumbnailKey).toBe(keys.thumbnail);
     expect(r.error).toBeNull();
+    expect(r.ocrCostMicroUsd).toBe(4200);
+    const parsedOcr = ReceiptOcrSchema.parse(r.ocr);
+    expect(parsedOcr.reconciliation.matches).toBe(true);
+    expect(parsedOcr.items.length).toBeGreaterThan(0);
 
     expect(storage.objects.has(keys.original)).toBe(false);
     const image = storage.objects.get(keys.image)!;
@@ -123,5 +134,55 @@ describe("processReceipt", () => {
     expect(await processReceipt(deps, id)).toBe("skipped");
     expect((await row(id)).status).toBe("awaiting_upload");
     expect(await processReceipt(deps, crypto.randomUUID())).toBe("skipped");
+  });
+
+  it("marks receipt needs_review when OCR line items do not reconcile with the total", async () => {
+    const { id, keys } = await receipt("uploaded", await photo());
+    const mismatchOcr = new FixtureOcrProvider({
+      extraction: {
+        merchant: "Corner Bistro",
+        date: "2026-11-12",
+        currency: "USD",
+        items: [
+          {
+            description: "Pasta",
+            quantity: 1,
+            unitPriceCents: 1500,
+            totalPriceCents: 1500,
+            confidence: "high",
+          },
+        ],
+        subtotalCents: 1500,
+        taxCents: 150,
+        tipCents: null,
+        feeCents: null,
+        discountCents: null,
+        totalCents: 1900,
+      },
+    });
+    expect(await processReceipt({ ...deps, ocr: mismatchOcr }, id)).toBe("needs_review");
+
+    const r = await row(id);
+    expect(r.status).toBe("needs_review");
+    expect(storage.objects.has(keys.original)).toBe(false);
+    const parsedOcr = ReceiptOcrSchema.parse(r.ocr);
+    expect(parsedOcr.reconciliation.matches).toBe(false);
+    expect(parsedOcr.reconciliation.discrepancyCents).toBe(250);
+  });
+
+  it("marks receipt failed without throwing when the OCR model refuses the image", async () => {
+    const { id } = await receipt("uploaded", await photo());
+    const refusingOcr: OcrProvider = {
+      name: "claude",
+      extract: () =>
+        Promise.reject(
+          new OcrRefusalError("Refused", { category: "other", explanation: "Policy violation" }),
+        ),
+    };
+    expect(await processReceipt({ ...deps, ocr: refusingOcr }, id)).toBe("failed");
+
+    const r = await row(id);
+    expect(r.status).toBe("failed");
+    expect(r.error).toMatch(/cannot be processed as a receipt/);
   });
 });

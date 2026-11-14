@@ -11,14 +11,18 @@ WORKDIR /repo
 FROM base AS build
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/config/package.json packages/config/
+COPY packages/contracts/package.json packages/contracts/
 COPY packages/db/package.json packages/db/
+COPY packages/ocr/package.json packages/ocr/
 COPY packages/queue/package.json packages/queue/
 COPY packages/storage/package.json packages/storage/
 COPY apps/worker/package.json apps/worker/
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter @billsplit/worker...
 COPY packages/config packages/config
+COPY packages/contracts packages/contracts
 COPY packages/db packages/db
+COPY packages/ocr packages/ocr
 COPY packages/queue packages/queue
 COPY packages/storage packages/storage
 COPY apps/worker apps/worker

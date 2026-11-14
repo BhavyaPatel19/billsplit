@@ -20,6 +20,12 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .optional()
     .transform((v) => (v === undefined ? undefined : v === "true")),
+
+  OCR_PROVIDER: z.enum(["claude", "fixture"]).optional(),
+  ANTHROPIC_API_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

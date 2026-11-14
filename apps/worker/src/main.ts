@@ -1,6 +1,7 @@
 import { UnrecoverableError, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 import { createDb, schema } from "@billsplit/db";
+import { createOcrProvider } from "@billsplit/ocr";
 import {
   bullConnection,
   createRedis,
@@ -26,7 +27,12 @@ const storage = createReceiptStorage({
   forcePathStyle: env.S3_FORCE_PATH_STYLE,
 });
 const redis = createRedis(env.REDIS_URL);
-const deps = { db: dbHandle.db, storage, logger };
+const ocr = createOcrProvider({
+  ...(env.OCR_PROVIDER ? { provider: env.OCR_PROVIDER } : {}),
+  ...(env.ANTHROPIC_API_KEY ? { apiKey: env.ANTHROPIC_API_KEY } : {}),
+});
+logger.info({ ocrProvider: ocr.name }, "configured OCR provider");
+const deps = { db: dbHandle.db, storage, ocr, logger };
 
 const worker = new Worker<ReceiptJobData, void, ReceiptJobName>(
   RECEIPTS_QUEUE,

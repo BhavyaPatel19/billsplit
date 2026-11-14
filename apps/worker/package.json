@@ -15,7 +15,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@billsplit/contracts": "workspace:*",
     "@billsplit/db": "workspace:*",
+    "@billsplit/ocr": "workspace:*",
     "@billsplit/queue": "workspace:*",
     "@billsplit/storage": "workspace:*",
     "bullmq": "6.5.4",
