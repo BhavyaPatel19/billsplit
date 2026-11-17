@@ -1,9 +1,11 @@
 import { randomBytes } from "node:crypto";
-import { and, count, eq, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute, resolver } from "hono-openapi";
 import { schema, type Db } from "@billsplit/db";
 import {
+  AuditActionSchema,
+  AuditLogResponseSchema,
   CreateGroupBodySchema,
   CreateInviteBodySchema,
   CreateParticipantBodySchema,
@@ -15,13 +17,16 @@ import {
   ParticipantSchema,
   UpdateGroupBodySchema,
   UpdateParticipantBodySchema,
+  type AuditLogResponse,
   type GroupDetail,
   type GroupSummary,
   type Invite,
   type Participant,
 } from "@billsplit/contracts";
 import type { Env } from "../env.js";
+import { recordAudit } from "../lib/audit.js";
 import { requireMembership, requireOwner } from "../lib/authorize.js";
+import type { ClaimEvents } from "../lib/claim-events.js";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors.js";
 import { isUuid } from "../lib/ids.js";
 import { hasHistory } from "../lib/ledger.js";
@@ -42,7 +47,7 @@ const idParam = {
   ],
 };
 
-export function groupRoutes(db: Db, env: Env) {
+export function groupRoutes(db: Db, env: Env, claimEvents: ClaimEvents) {
   const router = new Hono<{ Variables: SessionVariables }>();
   router.use("/groups", requireSession);
   router.use("/groups/*", requireSession);
@@ -313,7 +318,7 @@ export function groupRoutes(db: Db, env: Env) {
       tags: ["participants"],
       summary: "Merge a placeholder into a participant with an account (owner)",
       description:
-        "The placeholder keeps its rows (history still references it) but is hidden and resolves to the target.",
+        "The placeholder keeps its rows (history still references it) but is hidden and resolves to the target; its receipt claims move to the target. Repeating a merge that already happened returns 200 again.",
       responses: {
         200: {
           description: "Merged",
@@ -324,13 +329,40 @@ export function groupRoutes(db: Db, env: Env) {
     validate("json", MergeParticipantBodySchema),
     async (c) => {
       const userId = c.get("session")!.user.id;
-      const { group } = await requireOwner(db, userId, c.req.param("id"));
-      const source = await findActive(db, group.id, c.req.param("pid"));
-      const target = await findActive(db, group.id, c.req.valid("json").intoParticipantId);
-      if (source.id === target.id) throw badRequest("Cannot merge a participant into itself");
-      if (source.userId !== null) throw conflict("Only placeholders can be merged");
-      if (target.userId === null) throw conflict("Merge target must have an account");
-      await db.transaction(async (tx) => {
+      const { group, me } = await requireOwner(db, userId, c.req.param("id"));
+      const sourceId = c.req.param("pid");
+      const targetId = c.req.valid("json").intoParticipantId;
+      if (!isUuid(sourceId)) throw notFound("Participant not found");
+      if (sourceId === targetId) throw badRequest("Cannot merge a participant into itself");
+
+      const result = await db.transaction(async (tx) => {
+        // Lock both rows, always in id order, so two merges of the same placeholder (or a
+        // merge racing an invite that claims it) run one after the other and cannot deadlock.
+        // NO KEY UPDATE, because only non-key columns change: a plain FOR UPDATE would also
+        // block the foreign-key checks that other merges' audit and claim rows make against
+        // these participants, and two merges into each other's rows would deadlock.
+        const rows = await tx
+          .select()
+          .from(schema.participants)
+          .where(
+            and(
+              eq(schema.participants.groupId, group.id),
+              inArray(schema.participants.id, [sourceId, targetId]),
+            ),
+          )
+          .orderBy(schema.participants.id)
+          .for("no key update");
+        const source = rows.find((p) => p.id === sourceId);
+        const target = rows.find((p) => p.id === targetId);
+        if (!source || !target || target.mergedIntoId) throw notFound("Participant not found");
+        // Asking again for a merge that already happened is a success, not an error.
+        if (source.mergedIntoId === target.id) return { target, receiptIds: [] };
+        if (source.mergedIntoId) {
+          throw conflict("That placeholder was already merged into someone else");
+        }
+        if (source.userId !== null) throw conflict("Only placeholders can be merged");
+        if (target.userId === null) throw conflict("Merge target must have an account");
+
         await tx
           .update(schema.participants)
           .set({ mergedIntoId: target.id })
@@ -340,8 +372,89 @@ export function groupRoutes(db: Db, env: Env) {
           .update(schema.invites)
           .set({ participantId: null })
           .where(eq(schema.invites.participantId, source.id));
+
+        // Receipt claims follow the person. Where the account already claimed the same line
+        // itself, its own claim stands and the placeholder's is dropped, which also keeps a
+        // line from going over 100%.
+        const claims = await tx
+          .select()
+          .from(schema.receiptClaims)
+          .where(inArray(schema.receiptClaims.participantId, [source.id, target.id]));
+        const targetLines = new Set(
+          claims
+            .filter((cl) => cl.participantId === target.id)
+            .map((cl) => `${cl.receiptId}:${cl.itemIndex}`),
+        );
+        const sourceClaims = claims.filter((cl) => cl.participantId === source.id);
+        const dropped = sourceClaims.filter((cl) =>
+          targetLines.has(`${cl.receiptId}:${cl.itemIndex}`),
+        );
+        if (dropped.length > 0) {
+          await tx.delete(schema.receiptClaims).where(
+            inArray(
+              schema.receiptClaims.id,
+              dropped.map((cl) => cl.id),
+            ),
+          );
+        }
+        await tx
+          .update(schema.receiptClaims)
+          .set({ participantId: target.id })
+          .where(eq(schema.receiptClaims.participantId, source.id));
+
+        await recordAudit(tx, {
+          groupId: group.id,
+          actorUserId: userId,
+          actorParticipantId: me.id,
+          action: "participant.merged",
+          details: {
+            placeholderId: source.id,
+            placeholderName: source.displayName,
+            intoParticipantId: target.id,
+            intoName: target.displayName,
+            claimsMoved: sourceClaims.length - dropped.length,
+            claimsDropped: dropped.length,
+          },
+        });
+        return { target, receiptIds: [...new Set(sourceClaims.map((cl) => cl.receiptId))] };
       });
-      return c.json(toParticipant(target, userId), 200);
+      // Open receipt pages show the claims under their new owner straight away.
+      for (const receiptId of result.receiptIds) claimEvents.publish(receiptId);
+      return c.json(toParticipant(result.target, userId), 200);
+    },
+  );
+
+  router.get(
+    "/groups/:id/audit-log",
+    describeRoute({
+      tags: ["groups"],
+      summary: "Who merged or took over which placeholder, newest first (owner)",
+      ...idParam,
+      responses: {
+        200: {
+          description: "OK",
+          content: { "application/json": { schema: resolver(AuditLogResponseSchema) } },
+        },
+      },
+    }),
+    async (c) => {
+      const { group } = await requireOwner(db, c.get("session")!.user.id, c.req.param("id"));
+      const rows = await db
+        .select()
+        .from(schema.auditLog)
+        .where(eq(schema.auditLog.groupId, group.id))
+        .orderBy(desc(schema.auditLog.createdAt))
+        .limit(100);
+      const body: AuditLogResponse = {
+        entries: rows.map((r) => ({
+          id: r.id,
+          action: AuditActionSchema.parse(r.action),
+          actorParticipantId: r.actorParticipantId,
+          details: r.details,
+          createdAt: r.createdAt.toISOString(),
+        })),
+      };
+      return c.json(body, 200);
     },
   );
 
