@@ -23,6 +23,7 @@ import type { Env } from "../env.js";
 import type { ReceiptJobs } from "../jobs.js";
 import { requireMembership } from "../lib/authorize.js";
 import { ApiError, badRequest, conflict, forbidden, notFound } from "../lib/errors.js";
+import { isUuid } from "../lib/ids.js";
 import { validate } from "../lib/validate.js";
 import { requireSession, type SessionVariables } from "../middleware/session.js";
 
@@ -36,8 +37,6 @@ const PUT_TTL_SECONDS = 10 * 60;
 const GET_TTL_SECONDS = 5 * 60;
 const LIST_LIMIT = 50;
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Row = typeof schema.receipts.$inferSelect;
 type NewRow = typeof schema.receipts.$inferInsert;
@@ -84,7 +83,7 @@ export function receiptRoutes(
 
   /** The receipt if it belongs to this group; a malformed id is simply not found. */
   const findInGroup = async (groupId: string, receiptId: string): Promise<Row> => {
-    if (!UUID.test(receiptId)) throw notFound("Receipt not found");
+    if (!isUuid(receiptId)) throw notFound("Receipt not found");
     const [row] = await db
       .select()
       .from(schema.receipts)
