@@ -1,4 +1,5 @@
 export * from "./account.js";
+export * from "./activity.js";
 export * from "./claims.js";
 export * from "./expenses.js";
 export * from "./groups.js";
