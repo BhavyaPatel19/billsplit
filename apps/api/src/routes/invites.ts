@@ -9,7 +9,9 @@ import {
   type InvitePreview,
   type InviteStatus,
 } from "@billsplit/contracts";
+import { recordAudit } from "../lib/audit.js";
 import { gone, notFound } from "../lib/errors.js";
+import { isUniqueViolation } from "../lib/ledger.js";
 import { requireSession, type SessionVariables } from "../middleware/session.js";
 
 type InviteRow = typeof schema.invites.$inferSelect;
@@ -116,44 +118,95 @@ export function inviteRoutes(db: Db) {
       }
       if (status !== "valid") throw gone(`This invite is ${status}`);
 
-      const participantId = await db.transaction(async (tx) => {
-        // Consume a use atomically; a concurrent acceptor past max_uses gets nothing back.
-        const [consumed] = await tx
-          .update(schema.invites)
-          .set({ uses: sql`${schema.invites.uses} + 1` })
+      let participantId: string;
+      try {
+        participantId = await db.transaction(async (tx) => {
+          // Lock the placeholder before the invite, the same order a merge takes them in,
+          // so an accept racing a merge waits instead of deadlocking.
+          if (placeholder) {
+            await tx
+              .select({ id: schema.participants.id })
+              .from(schema.participants)
+              .where(eq(schema.participants.id, placeholder.id))
+              .for("no key update");
+          }
+          // Consume a use atomically; a concurrent acceptor past max_uses gets nothing back.
+          const [consumed] = await tx
+            .update(schema.invites)
+            .set({ uses: sql`${schema.invites.uses} + 1` })
+            .where(
+              and(
+                eq(schema.invites.id, invite.id),
+                isNull(schema.invites.revokedAt),
+                sql`(${schema.invites.maxUses} is null or ${schema.invites.uses} < ${schema.invites.maxUses})`,
+              ),
+            )
+            .returning({ id: schema.invites.id });
+          if (!consumed) throw gone("This invite is exhausted");
+
+          if (placeholder) {
+            // Claim the placeholder: same row, so every split it appears in is now the user's.
+            const [claimed] = await tx
+              .update(schema.participants)
+              .set({ userId: user.id })
+              .where(
+                and(
+                  eq(schema.participants.id, placeholder.id),
+                  isNull(schema.participants.userId),
+                  // A merge may have retired the placeholder since the invite was loaded.
+                  isNull(schema.participants.mergedIntoId),
+                ),
+              )
+              .returning({ id: schema.participants.id });
+            if (!claimed) throw gone("This invite is claimed");
+            await recordAudit(tx, {
+              groupId: invite.groupId,
+              actorUserId: user.id,
+              actorParticipantId: claimed.id,
+              action: "participant.claimed",
+              details: {
+                placeholderId: placeholder.id,
+                placeholderName: placeholder.displayName,
+                inviteId: invite.id,
+              },
+            });
+            return claimed.id;
+          }
+          const [created] = await tx
+            .insert(schema.participants)
+            .values({
+              groupId: invite.groupId,
+              userId: user.id,
+              displayName: user.name,
+              role: "member",
+            })
+            .returning({ id: schema.participants.id });
+          return created!.id;
+        });
+      } catch (err) {
+        // The same person accepting twice at once: the second insert hits the one-active-
+        // participant-per-user index and rolls back (its invite use included), so answer as
+        // for any existing member.
+        if (!isUniqueViolation(err, "participants_group_user_active_uidx")) throw err;
+        const [winner] = await db
+          .select({ id: schema.participants.id })
+          .from(schema.participants)
           .where(
             and(
-              eq(schema.invites.id, invite.id),
-              isNull(schema.invites.revokedAt),
-              sql`(${schema.invites.maxUses} is null or ${schema.invites.uses} < ${schema.invites.maxUses})`,
+              eq(schema.participants.groupId, invite.groupId),
+              eq(schema.participants.userId, user.id),
+              isNull(schema.participants.mergedIntoId),
             ),
           )
-          .returning({ id: schema.invites.id });
-        if (!consumed) throw gone("This invite is exhausted");
-
-        if (placeholder) {
-          // Claim the placeholder: same row, so every split it appears in is now the user's.
-          const [claimed] = await tx
-            .update(schema.participants)
-            .set({ userId: user.id })
-            .where(
-              and(eq(schema.participants.id, placeholder.id), isNull(schema.participants.userId)),
-            )
-            .returning({ id: schema.participants.id });
-          if (!claimed) throw gone("This invite is claimed");
-          return claimed.id;
-        }
-        const [created] = await tx
-          .insert(schema.participants)
-          .values({
-            groupId: invite.groupId,
-            userId: user.id,
-            displayName: user.name,
-            role: "member",
-          })
-          .returning({ id: schema.participants.id });
-        return created!.id;
-      });
+          .limit(1);
+        if (!winner) throw err;
+        const body: AcceptInviteResponse = {
+          groupId: invite.groupId,
+          participantId: winner.id,
+          alreadyMember: true,
+        };
+        return c.json(body, 200);
+      }
 
       const body: AcceptInviteResponse = {
         groupId: invite.groupId,

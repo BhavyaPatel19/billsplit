@@ -36,6 +36,13 @@
       "when": 1794901225962,
       "tag": "0004_claim_links",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794902366741,
+      "tag": "0005_audit_log",
+      "breakpoints": true
     }
   ]
 }

@@ -118,3 +118,21 @@ export const ErrorResponseSchema = z.object({
   details: z.unknown().optional(),
 });
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
+
+export const AuditActionSchema = z.enum(["participant.merged", "participant.claimed"]);
+export type AuditAction = z.infer<typeof AuditActionSchema>;
+
+/** One entry in a group's audit log (owner only). */
+export const AuditEntrySchema = z.object({
+  id: z.uuid(),
+  action: AuditActionSchema,
+  /** Who did it, as a participant of this group; null if they have since been removed. */
+  actorParticipantId: z.uuid().nullable(),
+  /** Names and ids as they were at the time. */
+  details: z.record(z.string(), z.unknown()),
+  createdAt: z.iso.datetime(),
+});
+export type AuditEntry = z.infer<typeof AuditEntrySchema>;
+
+export const AuditLogResponseSchema = z.object({ entries: z.array(AuditEntrySchema) });
+export type AuditLogResponse = z.infer<typeof AuditLogResponseSchema>;

@@ -92,10 +92,10 @@ export function createApp({
 
   app.use("*", sessionMiddleware(auth));
   app.route("/", meRoutes());
-  app.route("/", groupRoutes(db, env));
+  const claimEvents = new ClaimEvents();
+  app.route("/", groupRoutes(db, env, claimEvents));
   app.route("/", expenseRoutes(db));
   app.route("/", inviteRoutes(db));
-  const claimEvents = new ClaimEvents();
   app.route("/", receiptRoutes(db, storage, jobs, env, claimEvents));
   app.route("/", claimRoutes(db, env, claimEvents));
 
