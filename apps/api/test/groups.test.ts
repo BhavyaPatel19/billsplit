@@ -121,6 +121,20 @@ describe("groups", () => {
     ).toBe(404);
   });
 
+  it("answers 404, not 500, for ids that are not uuids", async () => {
+    for (const [path, init] of [
+      [`/api/groups/not-a-uuid`, {}],
+      [`/api/groups/not-a-uuid`, { method: "PATCH", body: { name: "x" } }],
+      [`/api/groups/not-a-uuid`, { method: "DELETE" }],
+      [`/api/groups/not-a-uuid/participants`, { body: { displayName: "x" } }],
+      [`/api/groups/${flat.id}/participants/nope`, { method: "PATCH", body: { displayName: "x" } }],
+      [`/api/groups/${flat.id}/participants/nope`, { method: "DELETE" }],
+      [`/api/groups/${flat.id}/invites/nope`, { method: "DELETE" }],
+    ] as const) {
+      expect((await api(path, { cookie: ana, ...init })).status, path).toBe(404);
+    }
+  });
+
   it("lets the owner rename and change currency", async () => {
     const res = await api(`/api/groups/${flat.id}`, {
       cookie: ana,

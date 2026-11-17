@@ -20,6 +20,7 @@ import {
   type Split,
 } from "@billsplit/split-engine";
 import { badRequest } from "./errors.js";
+import { isUuid } from "./ids.js";
 
 type ParticipantRow = typeof schema.participants.$inferSelect;
 type VersionRow = typeof schema.expenseVersions.$inferSelect;
@@ -246,6 +247,7 @@ export function toDetail(
 
 /** Load the current version and shares for a set of live expenses. */
 export async function loadExpenses(db: Db, groupId: string, expenseId?: string) {
+  if (expenseId !== undefined && !isUuid(expenseId)) return [];
   const rows = await db
     .select({ expense: schema.expenses, version: schema.expenseVersions })
     .from(schema.expenses)

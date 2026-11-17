@@ -23,6 +23,7 @@ import {
 import type { Env } from "../env.js";
 import { requireMembership, requireOwner } from "../lib/authorize.js";
 import { badRequest, conflict, forbidden, notFound } from "../lib/errors.js";
+import { isUuid } from "../lib/ids.js";
 import { hasHistory } from "../lib/ledger.js";
 import { validate } from "../lib/validate.js";
 import { requireSession, type SessionVariables } from "../middleware/session.js";
@@ -418,6 +419,7 @@ export function groupRoutes(db: Db, env: Env) {
     }),
     async (c) => {
       const { group } = await requireOwner(db, c.get("session")!.user.id, c.req.param("id"));
+      if (!isUuid(c.req.param("inviteId"))) throw notFound("Invite not found");
       const [row] = await db
         .update(schema.invites)
         .set({ revokedAt: new Date() })
@@ -434,6 +436,7 @@ export function groupRoutes(db: Db, env: Env) {
 }
 
 async function findActive(db: Db, groupId: string, participantId: string): Promise<ParticipantRow> {
+  if (!isUuid(participantId)) throw notFound("Participant not found");
   const [row] = await db
     .select()
     .from(schema.participants)
