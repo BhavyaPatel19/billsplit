@@ -24,6 +24,7 @@ import {
   type Participant,
 } from "@billsplit/contracts";
 import type { Env } from "../env.js";
+import { recordActivity } from "../lib/activity.js";
 import { recordAudit } from "../lib/audit.js";
 import { requireMembership, requireOwner } from "../lib/authorize.js";
 import type { ClaimEvents } from "../lib/claim-events.js";
@@ -415,6 +416,14 @@ export function groupRoutes(db: Db, env: Env, claimEvents: ClaimEvents) {
             claimsMoved: sourceClaims.length - dropped.length,
             claimsDropped: dropped.length,
           },
+        });
+        await recordActivity(tx, {
+          groupId: group.id,
+          actorParticipantId: me.id,
+          subjectId: source.id,
+          involved: [target.id],
+          kind: "member.merged",
+          data: { placeholderName: source.displayName, intoId: target.id },
         });
         return { target, receiptIds: [...new Set(sourceClaims.map((cl) => cl.receiptId))] };
       });

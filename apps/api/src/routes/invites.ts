@@ -9,6 +9,7 @@ import {
   type InvitePreview,
   type InviteStatus,
 } from "@billsplit/contracts";
+import { recordActivity } from "../lib/activity.js";
 import { recordAudit } from "../lib/audit.js";
 import { gone, notFound } from "../lib/errors.js";
 import { isUniqueViolation } from "../lib/ledger.js";
@@ -170,6 +171,14 @@ export function inviteRoutes(db: Db) {
                 inviteId: invite.id,
               },
             });
+            await recordActivity(tx, {
+              groupId: invite.groupId,
+              actorParticipantId: claimed.id,
+              subjectId: claimed.id,
+              involved: [],
+              kind: "member.joined",
+              data: { displayName: placeholder.displayName },
+            });
             return claimed.id;
           }
           const [created] = await tx
@@ -181,6 +190,14 @@ export function inviteRoutes(db: Db) {
               role: "member",
             })
             .returning({ id: schema.participants.id });
+          await recordActivity(tx, {
+            groupId: invite.groupId,
+            actorParticipantId: created!.id,
+            subjectId: created!.id,
+            involved: [],
+            kind: "member.joined",
+            data: { displayName: user.name },
+          });
           return created!.id;
         });
       } catch (err) {

@@ -2,6 +2,7 @@ import { Plus, Receipt } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  ActivityListResponseSchema,
   BalancesResponseSchema,
   ExpenseListResponseSchema,
   GroupDetailSchema,
@@ -12,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { fetchMeta } from "@/lib/api";
 import { money } from "@/lib/money";
 import { serverApi } from "@/lib/server-api";
+import { ActivityPanel } from "./activity-panel";
 import { BalancesPanel } from "./balances-panel";
 import { GroupHeader } from "./group-header";
 import { MembersPanel } from "./members-panel";
@@ -25,14 +27,15 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function GroupPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [group, list, balances, receiptList, meta] = await Promise.all([
+  const [group, list, balances, receiptList, activity, meta] = await Promise.all([
     serverApi(`/groups/${id}`, GroupDetailSchema),
     serverApi(`/groups/${id}/expenses`, ExpenseListResponseSchema),
     serverApi(`/groups/${id}/balances`, BalancesResponseSchema),
     serverApi(`/groups/${id}/receipts`, ReceiptListResponseSchema),
+    serverApi(`/groups/${id}/activity?limit=15`, ActivityListResponseSchema),
     fetchMeta(),
   ]);
-  if (!group || !list || !balances || !receiptList) notFound();
+  if (!group || !list || !balances || !receiptList || !activity) notFound();
 
   const name = (pid: string) => {
     const p = group.participants.find((x) => x.id === pid);
@@ -110,6 +113,8 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
             samplesEnabled={meta.features.receiptSamples}
             scansPerDay={meta.limits.receiptScansPerDay}
           />
+
+          <ActivityPanel group={group} initial={activity} />
         </div>
       </section>
     </div>

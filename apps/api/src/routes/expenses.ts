@@ -13,6 +13,7 @@ import {
   type ExpenseInput,
   type Settlement,
 } from "@billsplit/contracts";
+import { recordActivity } from "../lib/activity.js";
 import { requireMembership } from "../lib/authorize.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { isUuid } from "../lib/ids.js";
@@ -90,6 +91,15 @@ export function expenseRoutes(db: Db) {
       .update(schema.expenses)
       .set({ currentVersionId: row!.id })
       .where(eq(schema.expenses.id, expenseId));
+    return {
+      facts: {
+        description: stored.description,
+        totalCents: breakdown.total,
+        currency,
+        payerId: stored.payerId,
+      },
+      involved: [stored.payerId, ...shares.map((s) => s.participantId)],
+    };
   };
 
   // ---- expenses ----------------------------------------------------------------------------
@@ -159,7 +169,23 @@ export function expenseRoutes(db: Db) {
             .insert(schema.expenses)
             .values({ groupId: group.id, createdBy: me.id, idempotencyKey: key })
             .returning({ id: schema.expenses.id });
-          await writeVersion(tx, expense!.id, 1, body, group.currency, me.id, resolver.active);
+          const written = await writeVersion(
+            tx,
+            expense!.id,
+            1,
+            body,
+            group.currency,
+            me.id,
+            resolver.active,
+          );
+          await recordActivity(tx, {
+            groupId: group.id,
+            actorParticipantId: me.id,
+            subjectId: expense!.id,
+            involved: written.involved,
+            kind: "expense.added",
+            data: written.facts,
+          });
           return expense!.id;
         });
         return c.json(await detail(group.id, expenseId), 201);
@@ -206,8 +232,8 @@ export function expenseRoutes(db: Db) {
       const [current] = await loadExpenses(db, group.id, c.req.param("expenseId"));
       if (!current) throw notFound("Expense not found");
       const resolver = await ParticipantResolver.forGroup(db, group.id);
-      await db.transaction((tx) =>
-        writeVersion(
+      await db.transaction(async (tx) => {
+        const written = await writeVersion(
           tx,
           current.expense.id,
           current.version.version + 1,
@@ -215,8 +241,21 @@ export function expenseRoutes(db: Db) {
           current.version.currency,
           me.id,
           resolver.active,
-        ),
-      );
+        );
+        // Everyone on either version hears about it: someone taken off the bill cares too.
+        await recordActivity(tx, {
+          groupId: group.id,
+          actorParticipantId: me.id,
+          subjectId: current.expense.id,
+          involved: [
+            ...written.involved,
+            current.version.payerId,
+            ...current.shares.map((s) => s.participantId),
+          ],
+          kind: "expense.edited",
+          data: written.facts,
+        });
+      });
       return c.json(await detail(group.id, current.expense.id), 200);
     },
   );
@@ -229,20 +268,35 @@ export function expenseRoutes(db: Db) {
       responses: { 204: { description: "Deleted" } },
     }),
     async (c) => {
-      const { group } = await requireMembership(db, c.get("session")!.user.id, c.req.param("id"));
-      if (!isUuid(c.req.param("expenseId"))) throw notFound("Expense not found");
-      const [row] = await db
-        .update(schema.expenses)
-        .set({ deletedAt: new Date() })
-        .where(
-          and(
-            eq(schema.expenses.id, c.req.param("expenseId")),
-            eq(schema.expenses.groupId, group.id),
-            isNull(schema.expenses.deletedAt),
-          ),
-        )
-        .returning({ id: schema.expenses.id });
-      if (!row) throw notFound("Expense not found");
+      const { group, me } = await requireMembership(
+        db,
+        c.get("session")!.user.id,
+        c.req.param("id"),
+      );
+      const [current] = await loadExpenses(db, group.id, c.req.param("expenseId"));
+      if (!current) throw notFound("Expense not found");
+      await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(schema.expenses)
+          .set({ deletedAt: new Date() })
+          .where(and(eq(schema.expenses.id, current.expense.id), isNull(schema.expenses.deletedAt)))
+          .returning({ id: schema.expenses.id });
+        // Someone else deleted it a moment ago; theirs is the entry in the feed.
+        if (!row) throw notFound("Expense not found");
+        await recordActivity(tx, {
+          groupId: group.id,
+          actorParticipantId: me.id,
+          subjectId: current.expense.id,
+          involved: [current.version.payerId, ...current.shares.map((s) => s.participantId)],
+          kind: "expense.deleted",
+          data: {
+            description: current.version.description,
+            totalCents: current.version.totalCents,
+            currency: current.version.currency,
+            payerId: current.version.payerId,
+          },
+        });
+      });
       return c.body(null, 204);
     },
   );
@@ -344,20 +398,36 @@ export function expenseRoutes(db: Db) {
       if (earlier) return earlier;
 
       try {
-        const [row] = await db
-          .insert(schema.settlements)
-          .values({
+        const row = await db.transaction(async (tx) => {
+          const [inserted] = await tx
+            .insert(schema.settlements)
+            .values({
+              groupId: group.id,
+              fromId: body.fromId,
+              toId: body.toId,
+              amountCents: body.amountCents,
+              currency: group.currency,
+              note: body.note ?? null,
+              createdBy: me.id,
+              idempotencyKey: key,
+            })
+            .returning();
+          await recordActivity(tx, {
             groupId: group.id,
-            fromId: body.fromId,
-            toId: body.toId,
-            amountCents: body.amountCents,
-            currency: group.currency,
-            note: body.note ?? null,
-            createdBy: me.id,
-            idempotencyKey: key,
-          })
-          .returning();
-        return c.json(toSettlement(row!, resolver), 201);
+            actorParticipantId: me.id,
+            subjectId: inserted!.id,
+            involved: [body.fromId, body.toId],
+            kind: "payment.recorded",
+            data: {
+              fromId: body.fromId,
+              toId: body.toId,
+              amountCents: body.amountCents,
+              currency: group.currency,
+            },
+          });
+          return inserted!;
+        });
+        return c.json(toSettlement(row, resolver), 201);
       } catch (err) {
         if (isUniqueViolation(err, "settlements_group_idempotency_uidx")) {
           const raced = await replay();
@@ -396,10 +466,27 @@ export function expenseRoutes(db: Db) {
       if (!row) throw notFound("Payment not found");
       if (row.createdBy !== me.id && me.role !== "owner")
         throw forbidden("Only whoever recorded it can undo it");
-      await db
-        .update(schema.settlements)
-        .set({ deletedAt: new Date() })
-        .where(eq(schema.settlements.id, row.id));
+      await db.transaction(async (tx) => {
+        const [removed] = await tx
+          .update(schema.settlements)
+          .set({ deletedAt: new Date() })
+          .where(and(eq(schema.settlements.id, row.id), isNull(schema.settlements.deletedAt)))
+          .returning({ id: schema.settlements.id });
+        if (!removed) throw notFound("Payment not found");
+        await recordActivity(tx, {
+          groupId: group.id,
+          actorParticipantId: me.id,
+          subjectId: row.id,
+          involved: [row.fromId, row.toId],
+          kind: "payment.removed",
+          data: {
+            fromId: row.fromId,
+            toId: row.toId,
+            amountCents: row.amountCents,
+            currency: row.currency,
+          },
+        });
+      });
       return c.body(null, 204);
     },
   );
