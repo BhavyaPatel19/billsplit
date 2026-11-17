@@ -15,8 +15,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aws-sdk/client-sesv2": "3.1161.0",
-    "@better-auth/drizzle-adapter": "1.7.15",
+    "@aws-sdk/client-sesv2": "3.1165.0",
+    "@better-auth/drizzle-adapter": "1.7.19",
     "@billsplit/contracts": "workspace:*",
     "@billsplit/db": "workspace:*",
     "@billsplit/queue": "workspace:*",
@@ -25,12 +25,12 @@
     "@hono/node-server": "2.1.6",
     "@node-rs/argon2": "2.2.2",
     "@scalar/hono-api-reference": "0.12.18",
-    "better-auth": "1.7.15",
-    "bullmq": "6.5.4",
+    "better-auth": "1.7.19",
+    "bullmq": "6.7.3",
     "drizzle-orm": "0.45.4",
     "hono": "4.13.17",
     "hono-openapi": "1.5.0",
-    "nodemailer": "10.3.1",
+    "nodemailer": "10.4.0",
     "pino": "10.4.0",
     "zod": "4.6.7"
   },
