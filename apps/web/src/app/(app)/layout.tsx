@@ -19,6 +19,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <Link href="/dashboard" className="text-zinc-700 hover:underline dark:text-zinc-300">
               Groups
             </Link>
+            <Link href="/settings" className="text-zinc-700 hover:underline dark:text-zinc-300">
+              Settings
+            </Link>
             <span className="hidden text-zinc-600 sm:inline dark:text-zinc-400">
               {session.user.name}
             </span>

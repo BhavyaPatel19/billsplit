@@ -62,6 +62,16 @@ const EnvSchema = z
     RECEIPT_DAILY_SCAN_LIMIT: z.coerce.number().int().nonnegative().default(20),
     /** Sample receipts per user per 24 hours; free to extract but still cost worker time. */
     RECEIPT_DAILY_SAMPLE_LIMIT: z.coerce.number().int().nonnegative().default(30),
+
+    /** Weekly "you owe" emails. Off: never scheduled (tests trigger them by hand). */
+    REMINDERS_ENABLED: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((v) => v === "true"),
+    /** Days between reminder emails to the same person. */
+    REMINDER_INTERVAL_DAYS: z.coerce.number().int().positive().default(7),
+    /** Debts below this many cents are not worth a reminder. */
+    REMINDER_MIN_CENTS: z.coerce.number().int().nonnegative().default(100),
   })
   .transform((e) => ({
     ...e,

@@ -207,6 +207,7 @@ it("answers 503 when no bucket is configured", async () => {
     auth,
     storage: null,
     jobs: ctx.jobs,
+    notifier: ctx.notifier,
   });
   const res = await request(app, `/api/groups/${groupId}/receipts`, {
     cookie: ana,
@@ -220,7 +221,15 @@ function appWith(overrides: Partial<TestContext["env"]>): App {
   const env = { ...ctx.env, ...overrides };
   const logger = pino({ enabled: false });
   const auth = createAuth({ env, db: ctx.db.db, mailer: new InMemoryMailer(), logger });
-  return createApp({ env, logger, db: ctx.db.db, auth, storage: ctx.storage, jobs: ctx.jobs });
+  return createApp({
+    env,
+    logger,
+    db: ctx.db.db,
+    auth,
+    storage: ctx.storage,
+    jobs: ctx.jobs,
+    notifier: ctx.notifier,
+  });
 }
 
 describe("sample receipts", () => {

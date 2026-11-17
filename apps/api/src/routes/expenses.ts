@@ -14,6 +14,7 @@ import {
   type Settlement,
 } from "@billsplit/contracts";
 import { recordActivity } from "../lib/activity.js";
+import type { Notifier } from "../notifications.js";
 import { requireMembership } from "../lib/authorize.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { isUuid } from "../lib/ids.js";
@@ -45,7 +46,7 @@ function idempotencyKey(c: Ctx): string | null {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function expenseRoutes(db: Db) {
+export function expenseRoutes(db: Db, notifier: Notifier) {
   const router = new Hono<{ Variables: SessionVariables }>();
   router.use("/groups/:id/expenses", requireSession);
   router.use("/groups/:id/expenses/*", requireSession);
@@ -164,7 +165,7 @@ export function expenseRoutes(db: Db) {
 
       const resolver = await ParticipantResolver.forGroup(db, group.id);
       try {
-        const expenseId = await db.transaction(async (tx) => {
+        const { expenseId, activityId } = await db.transaction(async (tx) => {
           const [expense] = await tx
             .insert(schema.expenses)
             .values({ groupId: group.id, createdBy: me.id, idempotencyKey: key })
@@ -178,7 +179,7 @@ export function expenseRoutes(db: Db) {
             me.id,
             resolver.active,
           );
-          await recordActivity(tx, {
+          const activityId = await recordActivity(tx, {
             groupId: group.id,
             actorParticipantId: me.id,
             subjectId: expense!.id,
@@ -186,8 +187,9 @@ export function expenseRoutes(db: Db) {
             kind: "expense.added",
             data: written.facts,
           });
-          return expense!.id;
+          return { expenseId: expense!.id, activityId };
         });
+        notifier.activityRecorded(activityId);
         return c.json(await detail(group.id, expenseId), 201);
       } catch (err) {
         if (isUniqueViolation(err, "expenses_group_idempotency_uidx")) {
@@ -232,7 +234,7 @@ export function expenseRoutes(db: Db) {
       const [current] = await loadExpenses(db, group.id, c.req.param("expenseId"));
       if (!current) throw notFound("Expense not found");
       const resolver = await ParticipantResolver.forGroup(db, group.id);
-      await db.transaction(async (tx) => {
+      const activityId = await db.transaction(async (tx) => {
         const written = await writeVersion(
           tx,
           current.expense.id,
@@ -243,7 +245,7 @@ export function expenseRoutes(db: Db) {
           resolver.active,
         );
         // Everyone on either version hears about it: someone taken off the bill cares too.
-        await recordActivity(tx, {
+        return recordActivity(tx, {
           groupId: group.id,
           actorParticipantId: me.id,
           subjectId: current.expense.id,
@@ -256,6 +258,7 @@ export function expenseRoutes(db: Db) {
           data: written.facts,
         });
       });
+      notifier.activityRecorded(activityId);
       return c.json(await detail(group.id, current.expense.id), 200);
     },
   );
@@ -398,7 +401,7 @@ export function expenseRoutes(db: Db) {
       if (earlier) return earlier;
 
       try {
-        const row = await db.transaction(async (tx) => {
+        const { row, activityId } = await db.transaction(async (tx) => {
           const [inserted] = await tx
             .insert(schema.settlements)
             .values({
@@ -412,7 +415,7 @@ export function expenseRoutes(db: Db) {
               idempotencyKey: key,
             })
             .returning();
-          await recordActivity(tx, {
+          const activityId = await recordActivity(tx, {
             groupId: group.id,
             actorParticipantId: me.id,
             subjectId: inserted!.id,
@@ -425,8 +428,9 @@ export function expenseRoutes(db: Db) {
               currency: group.currency,
             },
           });
-          return inserted!;
+          return { row: inserted!, activityId };
         });
+        notifier.activityRecorded(activityId);
         return c.json(toSettlement(row, resolver), 201);
       } catch (err) {
         if (isUniqueViolation(err, "settlements_group_idempotency_uidx")) {

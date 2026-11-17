@@ -15,6 +15,7 @@ import type { ReceiptStorage } from "@billsplit/storage";
 import type { Env } from "./env.js";
 import type { ReceiptJobs } from "./jobs.js";
 import type { Logger } from "./logger.js";
+import type { Notifier } from "./notifications.js";
 import { sessionMiddleware, type SessionVariables } from "./middleware/session.js";
 import { activityRoutes } from "./routes/activity.js";
 import { claimRoutes } from "./routes/claims.js";
@@ -23,6 +24,7 @@ import { expenseRoutes } from "./routes/expenses.js";
 import { groupRoutes } from "./routes/groups.js";
 import { inviteRoutes } from "./routes/invites.js";
 import { meRoutes } from "./routes/me.js";
+import { unsubscribeRoutes } from "./routes/unsubscribe.js";
 import { metaRoutes } from "./routes/meta.js";
 import { receiptRoutes } from "./routes/receipts.js";
 
@@ -34,6 +36,7 @@ export interface AppDeps {
   /** Null when no bucket is configured; receipt endpoints then answer 503. */
   storage: ReceiptStorage | null;
   jobs: ReceiptJobs;
+  notifier: Notifier;
   startedAt?: Date;
 }
 
@@ -46,6 +49,7 @@ export function createApp({
   auth,
   storage,
   jobs,
+  notifier,
   startedAt = new Date(),
 }: AppDeps) {
   // Everything lives under /api so the reverse proxy and Next.js rewrites forward the prefix as-is.
@@ -92,10 +96,11 @@ export function createApp({
   app.on(["GET", "POST"], "/auth/*", (c) => auth.handler(c.req.raw));
 
   app.use("*", sessionMiddleware(auth));
-  app.route("/", meRoutes());
+  app.route("/", meRoutes(db, notifier));
+  app.route("/", unsubscribeRoutes(db));
   const claimEvents = new ClaimEvents();
   app.route("/", groupRoutes(db, env, claimEvents));
-  app.route("/", expenseRoutes(db));
+  app.route("/", expenseRoutes(db, notifier));
   app.route("/", inviteRoutes(db));
   app.route("/", activityRoutes(db));
   app.route("/", receiptRoutes(db, storage, jobs, env, claimEvents));

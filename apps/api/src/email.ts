@@ -8,6 +8,8 @@ export interface Email {
   subject: string;
   text: string;
   html?: string;
+  /** Extra headers, e.g. List-Unsubscribe. */
+  headers?: Record<string, string>;
 }
 
 export interface Mailer {
