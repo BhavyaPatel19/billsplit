@@ -6,6 +6,7 @@ import { createMailer } from "./email.js";
 import { loadEnv } from "./env.js";
 import { createReceiptJobs } from "./jobs.js";
 import { createLogger } from "./logger.js";
+import { Notifier } from "./notifications.js";
 import { createReceiptStorage } from "@billsplit/storage";
 
 const env = loadEnv();
@@ -25,7 +26,21 @@ const storage = env.RECEIPTS_BUCKET
     })
   : null;
 const jobs = createReceiptJobs(env, logger);
-const app = createApp({ env, logger, db: dbHandle.db, auth, storage, jobs });
+const notifier = new Notifier(dbHandle.db, mailer, env, logger);
+const app = createApp({ env, logger, db: dbHandle.db, auth, storage, jobs, notifier });
+
+// Reminders: checked hourly; each person still gets at most one per REMINDER_INTERVAL_DAYS.
+const reminders = env.REMINDERS_ENABLED
+  ? setInterval(() => {
+      notifier
+        .sendReminders()
+        .then((sent) => {
+          if (sent > 0) logger.info({ sent }, "reminder emails sent");
+        })
+        .catch((err: unknown) => logger.error({ err }, "reminder run failed"));
+    }, 3_600_000)
+  : null;
+reminders?.unref();
 
 const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   logger.info(
@@ -43,14 +58,18 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
 
 function shutdown(signal: string) {
   logger.info({ signal }, "shutting down");
+  if (reminders) clearInterval(reminders);
   server.close((err) => {
-    void Promise.all([dbHandle.close(), jobs.close()]).finally(() => {
-      if (err) {
-        logger.error({ err }, "error during shutdown");
-        process.exit(1);
-      }
-      process.exit(0);
-    });
+    void notifier
+      .idle()
+      .then(() => Promise.all([dbHandle.close(), jobs.close()]))
+      .finally(() => {
+        if (err) {
+          logger.error({ err }, "error during shutdown");
+          process.exit(1);
+        }
+        process.exit(0);
+      });
   });
   // Force exit if connections do not drain in time.
   setTimeout(() => process.exit(1), 10_000).unref();

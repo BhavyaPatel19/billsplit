@@ -5,7 +5,8 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 /**
  * Record a feed entry inside the transaction that made the change, so the feed never shows
- * something that rolled back and never misses something that committed.
+ * something that rolled back and never misses something that committed. Returns the entry id
+ * so the caller can hand it to the notifier once the transaction has committed.
  */
 export async function recordActivity(
   tx: Tx,
@@ -15,15 +16,19 @@ export async function recordActivity(
     subjectId: string | null;
     involved: Iterable<string>;
   } & ActivityPayload,
-): Promise<void> {
+): Promise<string> {
   const involved = new Set(entry.involved);
   if (entry.actorParticipantId) involved.add(entry.actorParticipantId);
-  await tx.insert(schema.activities).values({
-    groupId: entry.groupId,
-    actorParticipantId: entry.actorParticipantId,
-    kind: entry.kind,
-    subjectId: entry.subjectId,
-    involved: [...involved],
-    data: entry.data,
-  });
+  const [row] = await tx
+    .insert(schema.activities)
+    .values({
+      groupId: entry.groupId,
+      actorParticipantId: entry.actorParticipantId,
+      kind: entry.kind,
+      subjectId: entry.subjectId,
+      involved: [...involved],
+      data: entry.data,
+    })
+    .returning({ id: schema.activities.id });
+  return row!.id;
 }

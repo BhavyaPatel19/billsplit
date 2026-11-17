@@ -7,6 +7,7 @@ import { createAuth } from "../src/auth.js";
 import { InMemoryMailer } from "../src/email.js";
 import { InMemoryReceiptJobs } from "../src/jobs.js";
 import { loadEnv, type Env } from "../src/env.js";
+import { Notifier } from "../src/notifications.js";
 
 export interface TestContext {
   app: App;
@@ -14,6 +15,7 @@ export interface TestContext {
   mailer: InMemoryMailer;
   storage: InMemoryReceiptStorage;
   jobs: InMemoryReceiptJobs;
+  notifier: Notifier;
   db: DbHandle;
   stop(): Promise<void>;
 }
@@ -33,6 +35,7 @@ export async function startTestContext(overrides: NodeJS.ProcessEnv = {}): Promi
     DATABASE_URL: connectionString,
     BETTER_AUTH_SECRET: "test-secret-test-secret-test-secret-test-secret",
     EMAIL_TRANSPORT: "log",
+    REMINDERS_ENABLED: "false",
     ...overrides,
   });
   const logger = pino({ enabled: false });
@@ -41,7 +44,8 @@ export async function startTestContext(overrides: NodeJS.ProcessEnv = {}): Promi
   const auth = createAuth({ env, db: db.db, mailer, logger });
   const storage = new InMemoryReceiptStorage();
   const jobs = new InMemoryReceiptJobs();
-  const app = createApp({ env, logger, db: db.db, auth, storage, jobs });
+  const notifier = new Notifier(db.db, mailer, env, logger);
+  const app = createApp({ env, logger, db: db.db, auth, storage, jobs, notifier });
 
   return {
     app,
@@ -49,8 +53,10 @@ export async function startTestContext(overrides: NodeJS.ProcessEnv = {}): Promi
     mailer,
     storage,
     jobs,
+    notifier,
     db,
     stop: async () => {
+      await notifier.idle();
       await db.close();
       await container.stop();
     },
