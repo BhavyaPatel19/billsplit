@@ -1,0 +1,39 @@
+{
+  "id": "13-thai-basil-takeout",
+  "category": "fees",
+  "description": "Takeout order with bag fee",
+  "expected": {
+    "merchant": "Thai Basil Kitchen",
+    "date": "2026-11-08",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Pad See Ew Tofu",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1550,
+        "confidence": "high"
+      },
+      {
+        "description": "Green Curry Chicken",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1700,
+        "confidence": "high"
+      },
+      {
+        "description": "Mango Sticky Rice",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 850,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 4100,
+    "taxCents": 369,
+    "tipCents": 600,
+    "feeCents": 25,
+    "discountCents": null,
+    "totalCents": 5094
+  }
+}

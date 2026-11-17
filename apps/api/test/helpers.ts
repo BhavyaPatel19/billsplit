@@ -1,11 +1,11 @@
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { createDb, runMigrations, type DbHandle } from "@billsplit/db";
+import { InMemoryReceiptStorage } from "@billsplit/storage";
 import pino from "pino";
 import { createApp, type App } from "../src/app.js";
 import { createAuth } from "../src/auth.js";
 import { InMemoryMailer } from "../src/email.js";
 import { InMemoryReceiptJobs } from "../src/jobs.js";
-import { InMemoryReceiptStorage } from "../src/storage.js";
 import { loadEnv, type Env } from "../src/env.js";
 
 export interface TestContext {

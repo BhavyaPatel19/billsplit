@@ -1,0 +1,82 @@
+name: Nightly OCR Eval
+
+on:
+  schedule:
+    # 09:00 UTC (01:00 PT / 02:00 PDT) nightly so live OCR accuracy runs outside PR checks.
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: OCR provider to evaluate (defaults to claude when API key is set)
+        required: false
+        type: choice
+        options:
+          - auto
+          - claude
+          - fixture
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    name: Golden receipt eval
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @billsplit/contracts build
+
+      - name: Run golden OCR evaluation
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          INPUT_PROVIDER: ${{ inputs.provider || 'auto' }}
+        run: |
+          set -euo pipefail
+          args=(--out ocr-eval-report.json --min-item-precision 0.90 --min-item-recall 0.90 --min-total-rate 0.90)
+          if [ "$INPUT_PROVIDER" = "fixture" ]; then
+            args+=(--provider fixture)
+          elif [ "$INPUT_PROVIDER" = "claude" ]; then
+            args+=(--provider claude --require-live)
+          elif [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "ANTHROPIC_API_KEY secret is not configured; running fixture pipeline check."
+            args+=(--provider fixture)
+          fi
+          pnpm eval:ocr -- "${args[@]}"
+
+      - name: Publish summary
+        if: always() && hashFiles('ocr-eval-report.json') != ''
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const r = JSON.parse(fs.readFileSync("ocr-eval-report.json", "utf8"));
+            const s = r.summary;
+            const pct = (v) => `${(v * 100).toFixed(1)}%`;
+            const lines = [
+              `### Nightly OCR Eval (\`${r.provider}\`)`,
+              "",
+              "| Metric | Value |",
+              "| --- | --- |",
+              `| Cases | ${s.succeededCases}/${s.totalCases} |`,
+              `| Item Precision | ${pct(s.itemPrecision)} |`,
+              `| Item Recall | ${pct(s.itemRecall)} |`,
+              `| Item F1 | ${pct(s.itemF1)} |`,
+              `| Total Match Rate | ${pct(s.totalMatchRate)} |`,
+              `| Tax Match Rate | ${pct(s.taxMatchRate)} |`,
+              `| Tip Match Rate | ${pct(s.tipMatchRate)} |`,
+              `| Reconciliation Rate | ${pct(s.reconciliationRate)} |`,
+              `| Total Cost | $${(s.totalCostMicroUsd / 1_000_000).toFixed(4)} |`,
+              `| Avg Latency | ${s.avgLatencyMs} ms |`,
+            ];
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+          '

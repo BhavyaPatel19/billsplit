@@ -1,0 +1,32 @@
+{
+  "id": "20-bakery-morning",
+  "category": "minimal",
+  "description": "Short two-item bakery bill with tip and zero tax",
+  "expected": {
+    "merchant": "Tartine Morning",
+    "date": "2026-10-25",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Country Loaf",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1100,
+        "confidence": "high"
+      },
+      {
+        "description": "Morning Bun",
+        "quantity": 2,
+        "unitPriceCents": 550,
+        "totalPriceCents": 1100,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 2200,
+    "taxCents": null,
+    "tipCents": 200,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 2400
+  }
+}

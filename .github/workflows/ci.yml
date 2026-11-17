@@ -49,7 +49,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, web]
+        app: [api, web, worker]
     steps:
       - uses: actions/checkout@v7
 
@@ -109,7 +109,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Build and start the stack (postgres, migrations, api, web, mail)
+      - name: Build and start the stack (postgres, migrations, api, worker, web, mail, S3)
         run: |
           cp .env.example .env
           docker compose -f docker/compose.yml --env-file .env --profile app up -d --build
@@ -134,6 +134,7 @@ jobs:
           test "$code" = 200
           sleep 2
           curl -sf localhost:8025/api/v1/messages | grep -q 'Verify your email'
+          docker compose -f docker/compose.yml --env-file .env --profile app ps --status running --services | grep -qx worker
           echo "stack smoke test passed"
 
       - name: Logs on failure

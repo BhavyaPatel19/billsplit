@@ -1,0 +1,39 @@
+{
+  "id": "22-airport-cafe",
+  "category": "fees",
+  "description": "Airport cafe receipt with airport concession fee",
+  "expected": {
+    "merchant": "Gate 14 Provisions",
+    "date": "2026-10-21",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Turkey Avocado Sandwich",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1395,
+        "confidence": "high"
+      },
+      {
+        "description": "Bottled Water",
+        "quantity": 2,
+        "unitPriceCents": 425,
+        "totalPriceCents": 850,
+        "confidence": "high"
+      },
+      {
+        "description": "Kettle Chips",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 325,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 2570,
+    "taxCents": 218,
+    "tipCents": null,
+    "feeCents": 150,
+    "discountCents": null,
+    "totalCents": 2938
+  }
+}

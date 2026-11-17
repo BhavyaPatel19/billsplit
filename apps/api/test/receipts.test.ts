@@ -2,20 +2,21 @@ import { eq } from "drizzle-orm";
 import pino from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { schema } from "@billsplit/db";
+import { receiptKeys } from "@billsplit/storage";
 import {
   AcceptInviteResponseSchema,
   CreateReceiptResponseSchema,
   GroupDetailSchema,
   InviteSchema,
   ReceiptListResponseSchema,
+  MetaResponseSchema,
   ReceiptSchema,
   RECEIPT_MAX_BYTES,
   type CreateReceiptResponse,
 } from "@billsplit/contracts";
-import { createApp } from "../src/app.js";
+import { createApp, type App } from "../src/app.js";
 import { createAuth } from "../src/auth.js";
 import { InMemoryMailer } from "../src/email.js";
-import { receiptKeys } from "../src/routes/receipts.js";
 import { request, signUpVerified, startTestContext, type TestContext } from "./helpers.js";
 
 let ctx: TestContext;
@@ -121,7 +122,7 @@ describe("confirming an upload", () => {
 
   it("checks the object, marks it uploaded and queues processing exactly once", async () => {
     const { receipt } = await start();
-    ctx.storage.put(keyOf(receipt.id), jpeg(2048), "image/jpeg");
+    await ctx.storage.put(keyOf(receipt.id), jpeg(2048), "image/jpeg");
 
     const first = await complete(receipt.id);
     expect(first.status).toBe(200);
@@ -134,7 +135,7 @@ describe("confirming an upload", () => {
 
   it("fails a file whose size differs from the declaration and deletes it", async () => {
     const { receipt } = await start();
-    ctx.storage.put(keyOf(receipt.id), jpeg(4096), "image/jpeg");
+    await ctx.storage.put(keyOf(receipt.id), jpeg(4096), "image/jpeg");
     const res = await complete(receipt.id);
     expect(res.status).toBe(400);
     expect(ctx.storage.objects.has(keyOf(receipt.id))).toBe(false);
@@ -148,13 +149,13 @@ describe("confirming an upload", () => {
 
   it("fails a file whose type differs from the declaration", async () => {
     const { receipt } = await start();
-    ctx.storage.put(keyOf(receipt.id), jpeg(2048), "text/html");
+    await ctx.storage.put(keyOf(receipt.id), jpeg(2048), "text/html");
     expect((await complete(receipt.id)).status).toBe(400);
   });
 
   it("can only be done by the uploader", async () => {
     const { receipt } = await start();
-    ctx.storage.put(keyOf(receipt.id), jpeg(2048), "image/jpeg");
+    await ctx.storage.put(keyOf(receipt.id), jpeg(2048), "image/jpeg");
     expect((await complete(receipt.id, bo)).status).toBe(403);
     expect((await complete(receipt.id, outsider)).status).toBe(404);
   });
@@ -212,4 +213,237 @@ it("answers 503 when no bucket is configured", async () => {
     body: { contentType: "image/jpeg", sizeBytes: 10 },
   });
   expect(res.status).toBe(503);
+});
+
+/** The same database and storage, with different receipt settings. */
+function appWith(overrides: Partial<TestContext["env"]>): App {
+  const env = { ...ctx.env, ...overrides };
+  const logger = pino({ enabled: false });
+  const auth = createAuth({ env, db: ctx.db.db, mailer: new InMemoryMailer(), logger });
+  return createApp({ env, logger, db: ctx.db.db, auth, storage: ctx.storage, jobs: ctx.jobs });
+}
+
+describe("sample receipts", () => {
+  it("are queued straight away, marked as samples, with no upload", async () => {
+    const res = await api(`/api/groups/${groupId}/receipts/samples`, {
+      cookie: bo,
+      body: { sampleId: "taco-night" },
+    });
+    expect(res.status).toBe(201);
+    const receipt = ReceiptSchema.parse(await res.json());
+    expect(receipt.status).toBe("uploaded");
+    expect(receipt.sampleId).toBe("taco-night");
+    expect(ctx.jobs.queued).toContain(receipt.id);
+  });
+
+  it("refuses unknown samples and non-members", async () => {
+    const bad = await api(`/api/groups/${groupId}/receipts/samples`, {
+      cookie: bo,
+      body: { sampleId: "free-lunch" },
+    });
+    expect(bad.status).toBe(400);
+    const outside = await api(`/api/groups/${groupId}/receipts/samples`, {
+      cookie: outsider,
+      body: { sampleId: "taco-night" },
+    });
+    expect(outside.status).toBe(404);
+  });
+});
+
+describe("abuse limits", () => {
+  it("caps photo uploads per user per day, separately from samples, without signing a URL", async () => {
+    const app = appWith({ RECEIPT_DAILY_SCAN_LIMIT: 1, RECEIPT_DAILY_SAMPLE_LIMIT: 1 });
+    const cookie = await signUpVerified(ctx, "Cy", "cy@example.com");
+    const group = GroupDetailSchema.parse(
+      await (await request(app, "/api/groups", { cookie, body: { name: "Cy's" } })).json(),
+    ).id;
+    const scan = () =>
+      request(app, `/api/groups/${group}/receipts`, {
+        cookie,
+        body: { contentType: "image/jpeg", sizeBytes: 100 },
+      });
+    const sample = () =>
+      request(app, `/api/groups/${group}/receipts/samples`, {
+        cookie,
+        body: { sampleId: "bistro-dinner" },
+      });
+
+    expect((await scan()).status).toBe(201);
+    const refused = await scan();
+    expect(refused.status).toBe(429);
+    expect(((await refused.json()) as { error: string }).error).toMatch(/1 receipts per day/);
+
+    expect((await sample()).status).toBe(201);
+    expect((await sample()).status).toBe(429);
+
+    const rows = await ctx.db.db
+      .select()
+      .from(schema.receipts)
+      .where(eq(schema.receipts.groupId, group));
+    expect(rows).toHaveLength(2);
+  });
+
+  it("counts every group the user is in, and receipts older than a day no longer count", async () => {
+    const app = appWith({ RECEIPT_DAILY_SCAN_LIMIT: 1 });
+    const cookie = await signUpVerified(ctx, "Di", "di@example.com");
+    const make = async (name: string) =>
+      GroupDetailSchema.parse(
+        await (await request(app, "/api/groups", { cookie, body: { name } })).json(),
+      ).id;
+    const [g1, g2] = [await make("One"), await make("Two")];
+    const scan = (group: string) =>
+      request(app, `/api/groups/${group}/receipts`, {
+        cookie,
+        body: { contentType: "image/jpeg", sizeBytes: 100 },
+      });
+
+    const first = CreateReceiptResponseSchema.parse(await (await scan(g1)).json());
+    expect((await scan(g2)).status).toBe(429);
+
+    await ctx.db.db
+      .update(schema.receipts)
+      .set({ createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) })
+      .where(eq(schema.receipts.id, first.receipt.id));
+    expect((await scan(g2)).status).toBe(201);
+  });
+
+  it("demo mode refuses photo uploads but still serves samples, and says so in /meta", async () => {
+    const app = appWith({ RECEIPTS_DEMO_MODE: true, RECEIPTS_BUCKET: "test-bucket" });
+    const upload = await request(app, `/api/groups/${groupId}/receipts`, {
+      cookie: ana,
+      body: { contentType: "image/jpeg", sizeBytes: 100 },
+    });
+    expect(upload.status).toBe(403);
+    const sample = await request(app, `/api/groups/${groupId}/receipts/samples`, {
+      cookie: ana,
+      body: { sampleId: "grocery-run" },
+    });
+    expect(sample.status).toBe(201);
+
+    const meta = MetaResponseSchema.parse(await (await request(app, "/api/meta")).json());
+    expect(meta.features.receiptUploads).toBe(false);
+    expect(meta.features.receiptSamples).toBe(true);
+  });
+});
+
+describe("reviewing OCR extraction", () => {
+  const SAMPLE_OCR = {
+    merchant: "Greenleaf Market",
+    date: "2026-11-11",
+    currency: "USD",
+    items: [
+      {
+        description: "Free-range Eggs",
+        quantity: 1,
+        unitPriceCents: null,
+        totalPriceCents: 599,
+        confidence: "low" as const,
+      },
+    ],
+    subtotalCents: 699,
+    taxCents: null,
+    tipCents: null,
+    feeCents: null,
+    discountCents: null,
+    totalCents: 699,
+    reconciliation: {
+      matches: false,
+      itemsSumCents: 599,
+      computedTotalCents: 599,
+      discrepancyCents: 100,
+      reason: "Items + adjustments (599) do not equal total (699)",
+    },
+    model: "sample:grocery-run",
+    provider: "fixture" as const,
+  };
+
+  it("recomputes reconciliation and promotes needs_review -> ready when corrected", async () => {
+    const { receipt } = await start();
+    await ctx.db.db
+      .update(schema.receipts)
+      .set({ status: "needs_review", ocr: SAMPLE_OCR })
+      .where(eq(schema.receipts.id, receipt.id));
+
+    const fixed = await api(`/api/groups/${groupId}/receipts/${receipt.id}`, {
+      method: "PATCH",
+      cookie: bo,
+      body: {
+        merchant: "Greenleaf Market",
+        date: "2026-11-11",
+        currency: "USD",
+        items: [
+          {
+            description: "Free-range Eggs",
+            quantity: 1,
+            unitPriceCents: 699,
+            totalPriceCents: 699,
+            confidence: "high",
+          },
+        ],
+        subtotalCents: 699,
+        taxCents: null,
+        tipCents: null,
+        feeCents: null,
+        discountCents: null,
+        totalCents: 699,
+      },
+    });
+    expect(fixed.status).toBe(200);
+    const updated = ReceiptSchema.parse(await fixed.json());
+    expect(updated.status).toBe("ready");
+    expect(updated.ocr?.reconciliation.matches).toBe(true);
+    expect(updated.ocr?.model).toBe("sample:grocery-run");
+
+    const broken = await api(`/api/groups/${groupId}/receipts/${receipt.id}`, {
+      method: "PATCH",
+      cookie: ana,
+      body: {
+        ...updated.ocr!,
+        totalCents: 800,
+      },
+    });
+    expect(broken.status).toBe(200);
+    const demoted = ReceiptSchema.parse(await broken.json());
+    expect(demoted.status).toBe("needs_review");
+    expect(demoted.ocr?.reconciliation.discrepancyCents).toBe(101);
+  });
+
+  it("rejects review edits before processing completes and hides other groups", async () => {
+    const { receipt } = await start();
+    const pending = await api(`/api/groups/${groupId}/receipts/${receipt.id}`, {
+      method: "PATCH",
+      cookie: ana,
+      body: {
+        merchant: "Cafe",
+        date: null,
+        currency: "USD",
+        items: [],
+        subtotalCents: null,
+        taxCents: null,
+        tipCents: null,
+        feeCents: null,
+        discountCents: null,
+        totalCents: null,
+      },
+    });
+    expect(pending.status).toBe(409);
+
+    const outside = await api(`/api/groups/${groupId}/receipts/${receipt.id}`, {
+      method: "PATCH",
+      cookie: outsider,
+      body: {
+        merchant: "Cafe",
+        date: null,
+        currency: "USD",
+        items: [],
+        subtotalCents: null,
+        taxCents: null,
+        tipCents: null,
+        feeCents: null,
+        discountCents: null,
+        totalCents: null,
+      },
+    });
+    expect(outside.status).toBe(404);
+  });
 });

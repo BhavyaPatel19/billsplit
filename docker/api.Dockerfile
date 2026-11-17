@@ -13,6 +13,8 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/config/package.json packages/config/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/db/package.json packages/db/
+COPY packages/queue/package.json packages/queue/
+COPY packages/storage/package.json packages/storage/
 COPY packages/split-engine/package.json packages/split-engine/
 COPY apps/api/package.json apps/api/
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
@@ -20,6 +22,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 COPY packages/config packages/config
 COPY packages/contracts packages/contracts
 COPY packages/db packages/db
+COPY packages/queue packages/queue
+COPY packages/storage packages/storage
 COPY packages/split-engine packages/split-engine
 COPY apps/api apps/api
 RUN pnpm --filter @billsplit/api... build

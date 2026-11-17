@@ -1,0 +1,39 @@
+{
+  "id": "10-london-pub",
+  "category": "currency-gbp",
+  "description": "British pound gastropub receipt with optional service charge",
+  "expected": {
+    "merchant": "The Red Lion Pub",
+    "date": "2026-10-22",
+    "currency": "GBP",
+    "items": [
+      {
+        "description": "Fish and Chips",
+        "quantity": 2,
+        "unitPriceCents": 1650,
+        "totalPriceCents": 3300,
+        "confidence": "high"
+      },
+      {
+        "description": "Sticky Toffee Pudding",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 750,
+        "confidence": "high"
+      },
+      {
+        "description": "Pint Bitter",
+        "quantity": 3,
+        "unitPriceCents": 580,
+        "totalPriceCents": 1740,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 5790,
+    "taxCents": null,
+    "tipCents": null,
+    "feeCents": 579,
+    "discountCents": null,
+    "totalCents": 6369
+  }
+}

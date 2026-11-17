@@ -1,0 +1,32 @@
+{
+  "id": "24-ice-cream-tilted",
+  "category": "skewed",
+  "description": "Slightly tilted receipt on warm thermal paper",
+  "expected": {
+    "merchant": "Scoops Creamery",
+    "date": "2026-11-01",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Double Scoop Waffle",
+        "quantity": 2,
+        "unitPriceCents": 775,
+        "totalPriceCents": 1550,
+        "confidence": "high"
+      },
+      {
+        "description": "Mint Chip Pint",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1100,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 2650,
+    "taxCents": 225,
+    "tipCents": 300,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 3175
+  }
+}

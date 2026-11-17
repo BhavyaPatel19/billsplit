@@ -1,0 +1,39 @@
+{
+  "id": "19-cocktail-lounge",
+  "category": "bar",
+  "description": "Cocktail bar bill with tax and tip",
+  "expected": {
+    "merchant": "Velvet Room Lounge",
+    "date": "2026-11-02",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Espresso Martini",
+        "quantity": 2,
+        "unitPriceCents": 1700,
+        "totalPriceCents": 3400,
+        "confidence": "high"
+      },
+      {
+        "description": "Smoked Old Fashioned",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1800,
+        "confidence": "high"
+      },
+      {
+        "description": "Truffle Fries",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1200,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 6400,
+    "taxCents": 576,
+    "tipCents": 1280,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 8256
+  }
+}

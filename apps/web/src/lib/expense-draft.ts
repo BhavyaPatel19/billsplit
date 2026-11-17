@@ -1,7 +1,14 @@
-import type { AdjustmentInput, ExpenseInput, SplitInput } from "@billsplit/contracts";
+import type {
+  AdjustmentInput,
+  ExpenseInput,
+  GroupDetail,
+  Receipt,
+  SplitInput,
+} from "@billsplit/contracts";
 import {
   cents,
   computeExpense,
+  currencyDigits,
   parseDecimal,
   splitParticipants,
   SplitError,
@@ -36,6 +43,7 @@ export interface ExpenseDraft {
   lines: LineDraft[];
   tax: string;
   tip: string;
+  fee: string;
   discount: string;
 }
 
@@ -141,6 +149,7 @@ export function evaluateDraft(d: ExpenseDraft, currency: string, digits: number)
         [
           ["tax", d.tax],
           ["tip", d.tip],
+          ["fee", d.fee],
           ["discount", d.discount],
         ] as const
       )
@@ -203,6 +212,86 @@ function friendly(err: Error): string {
     }
   }
   return err.message;
+}
+
+/** Plain decimal string for input fields (`6000, 2 -> "60.00"`, `1200, 0 -> "1200"`). */
+export function formatInputAmount(amountCents: number, digits: number): string {
+  const neg = amountCents < 0 ? "-" : "";
+  const abs = Math.abs(Math.round(amountCents));
+  if (digits === 0) return `${neg}${abs}`;
+  const factor = 10 ** digits;
+  const whole = Math.floor(abs / factor);
+  const frac = String(abs % factor).padStart(digits, "0");
+  return `${neg}${whole}.${frac}`;
+}
+
+/**
+ * Turns a scanned receipt's OCR data into an itemized expense draft ready for tap-to-claim.
+ * Whole-number quantities whose total divides evenly preserve unit price × qty; fractional or
+ * bundled prices fall back to quantity `1` at the full line price so totals always match to the cent.
+ */
+export function receiptToExpenseDraft(
+  receipt: Receipt,
+  group: GroupDetail,
+  makeKey: () => string,
+): ExpenseDraft {
+  const ocr = receipt.ocr;
+  const everyone = group.participants.map((p) => p.id);
+  const digits = currencyDigits(group.currency);
+  const spentOn =
+    ocr?.date && /^\d{4}-\d{2}-\d{2}$/.test(ocr.date)
+      ? ocr.date
+      : new Date().toISOString().slice(0, 10);
+
+  const lines: LineDraft[] =
+    ocr && ocr.items.length > 0
+      ? ocr.items.map((item) => {
+          const integerQty =
+            Number.isInteger(item.quantity) &&
+            item.quantity >= 1 &&
+            item.totalPriceCents % item.quantity === 0;
+          const quantity = integerQty ? String(item.quantity) : "1";
+          const unitCents = integerQty
+            ? item.totalPriceCents / item.quantity
+            : item.totalPriceCents;
+          const label =
+            !integerQty && item.quantity !== 1
+              ? `${item.description} (${item.quantity}x)`
+              : item.description;
+          return {
+            key: makeKey(),
+            name: label,
+            amount: formatInputAmount(Math.max(0, unitCents), digits),
+            quantity,
+            split: { kind: "equal", people: everyone, values: {} },
+          };
+        })
+      : [
+          {
+            key: makeKey(),
+            name: "",
+            amount: "",
+            quantity: "1",
+            split: { kind: "equal", people: everyone, values: {} },
+          },
+        ];
+
+  const optAmount = (value: number | null | undefined) =>
+    value && value > 0 ? formatInputAmount(value, digits) : "";
+
+  return {
+    mode: "itemized",
+    description: ocr?.merchant?.trim() || "Receipt",
+    spentOn,
+    payerId: group.myParticipantId,
+    amount: "",
+    split: { kind: "equal", people: everyone, values: {} },
+    lines,
+    tax: optAmount(ocr?.taxCents),
+    tip: optAmount(ocr?.tipCents),
+    fee: optAmount(ocr?.feeCents),
+    discount: optAmount(ocr?.discountCents),
+  };
 }
 
 /** Equal percentages that add up to exactly 100, the last person absorbing rounding. */

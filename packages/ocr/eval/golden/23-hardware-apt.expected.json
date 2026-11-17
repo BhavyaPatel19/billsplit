@@ -1,0 +1,39 @@
+{
+  "id": "23-hardware-apt",
+  "category": "household",
+  "description": "Shared apartment hardware store items",
+  "expected": {
+    "merchant": "Bay Hardware Supply",
+    "date": "2026-10-18",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "LED Bulbs 4pk",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1299,
+        "confidence": "high"
+      },
+      {
+        "description": "Extension Cord 6ft",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 1449,
+        "confidence": "high"
+      },
+      {
+        "description": "Wall Hooks",
+        "quantity": 2,
+        "unitPriceCents": 599,
+        "totalPriceCents": 1198,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 3946,
+    "taxCents": 345,
+    "tipCents": null,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 4291
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "id": "17-pharmacy-loyalty",
+  "category": "discounts",
+  "description": "Drugstore receipt with loyalty discount",
+  "expected": {
+    "merchant": "Corner Pharmacy",
+    "date": "2026-11-04",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Ibuprofen 100ct",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 999,
+        "confidence": "high"
+      },
+      {
+        "description": "Hand Sanitizer",
+        "quantity": 2,
+        "unitPriceCents": 350,
+        "totalPriceCents": 700,
+        "confidence": "high"
+      },
+      {
+        "description": "Facial Tissues 3pk",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 649,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 2348,
+    "taxCents": 192,
+    "tipCents": null,
+    "feeCents": null,
+    "discountCents": 300,
+    "totalCents": 2240
+  }
+}

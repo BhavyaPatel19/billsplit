@@ -20,9 +20,15 @@ export function metaRoutes(env: Env) {
       },
     }),
     (c) => {
+      const storage = Boolean(env.RECEIPTS_BUCKET);
       const body: MetaResponse = {
         version: env.APP_VERSION,
-        features: { googleSignIn: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) },
+        features: {
+          googleSignIn: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
+          receiptUploads: storage && !env.RECEIPTS_DEMO_MODE,
+          receiptSamples: storage,
+        },
+        limits: { receiptScansPerDay: env.RECEIPT_DAILY_SCAN_LIMIT },
       };
       return c.json(body, 200);
     },

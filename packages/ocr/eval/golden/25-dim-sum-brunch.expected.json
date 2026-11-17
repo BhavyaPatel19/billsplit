@@ -1,0 +1,53 @@
+{
+  "id": "25-dim-sum-brunch",
+  "category": "restaurant",
+  "description": "Weekend dim sum tea house bill",
+  "expected": {
+    "merchant": "Golden Dragon Dim Sum",
+    "date": "2026-11-08",
+    "currency": "USD",
+    "items": [
+      {
+        "description": "Har Gow Shrimp",
+        "quantity": 2,
+        "unitPriceCents": 750,
+        "totalPriceCents": 1500,
+        "confidence": "high"
+      },
+      {
+        "description": "Pork Siu Mai",
+        "quantity": 2,
+        "unitPriceCents": 700,
+        "totalPriceCents": 1400,
+        "confidence": "high"
+      },
+      {
+        "description": "BBQ Pork Buns",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 675,
+        "confidence": "high"
+      },
+      {
+        "description": "Egg Tarts 3pc",
+        "quantity": 1,
+        "unitPriceCents": null,
+        "totalPriceCents": 625,
+        "confidence": "high"
+      },
+      {
+        "description": "Jasmine Tea Service",
+        "quantity": 4,
+        "unitPriceCents": 250,
+        "totalPriceCents": 1000,
+        "confidence": "high"
+      }
+    ],
+    "subtotalCents": 5200,
+    "taxCents": 468,
+    "tipCents": 936,
+    "feeCents": null,
+    "discountCents": null,
+    "totalCents": 6604
+  }
+}

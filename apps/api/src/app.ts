@@ -10,6 +10,7 @@ import { Scalar } from "@scalar/hono-api-reference";
 import type { Db } from "@billsplit/db";
 import type { ReadinessCheck } from "@billsplit/contracts";
 import type { Auth } from "./auth.js";
+import type { ReceiptStorage } from "@billsplit/storage";
 import type { Env } from "./env.js";
 import type { ReceiptJobs } from "./jobs.js";
 import type { Logger } from "./logger.js";
@@ -21,7 +22,6 @@ import { inviteRoutes } from "./routes/invites.js";
 import { meRoutes } from "./routes/me.js";
 import { metaRoutes } from "./routes/meta.js";
 import { receiptRoutes } from "./routes/receipts.js";
-import type { ReceiptStorage } from "./storage.js";
 
 export interface AppDeps {
   env: Env;
@@ -93,7 +93,7 @@ export function createApp({
   app.route("/", groupRoutes(db, env));
   app.route("/", expenseRoutes(db));
   app.route("/", inviteRoutes(db));
-  app.route("/", receiptRoutes(db, storage, jobs));
+  app.route("/", receiptRoutes(db, storage, jobs, env));
 
   app.get(
     "/openapi.json",

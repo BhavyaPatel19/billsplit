@@ -35,6 +35,9 @@ const EnvSchema = z
     SMTP_URL: z.string().default("smtp://localhost:1025"),
     AWS_REGION: z.string().optional(),
 
+    /** Valkey/Redis for background jobs. Unset: confirmed receipts are only logged, not queued. */
+    REDIS_URL: z.url().optional(),
+
     /** Private bucket for receipt images. Unset: receipt endpoints answer 503. */
     RECEIPTS_BUCKET: z.string().optional(),
     /** S3-compatible endpoint the API reaches (RustFS locally); unset in AWS. */
@@ -49,6 +52,16 @@ const EnvSchema = z
       .enum(["true", "false"])
       .optional()
       .transform((v) => (v === undefined ? undefined : v === "true")),
+
+    /** Public demo: photo uploads are refused and only the built-in sample receipts work. */
+    RECEIPTS_DEMO_MODE: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((v) => v === "true"),
+    /** Photo uploads each user may start per rolling 24 hours, so OCR spend stays bounded. */
+    RECEIPT_DAILY_SCAN_LIMIT: z.coerce.number().int().nonnegative().default(20),
+    /** Sample receipts per user per 24 hours; free to extract but still cost worker time. */
+    RECEIPT_DAILY_SAMPLE_LIMIT: z.coerce.number().int().nonnegative().default(30),
   })
   .transform((e) => ({
     ...e,
