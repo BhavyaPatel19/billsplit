@@ -331,12 +331,21 @@ export function receiptRoutes(
       };
       const nextStatus = reconciliation.matches ? "ready" : "needs_review";
 
-      const [updated] = await db
-        .update(schema.receipts)
-        .set({ ocr: nextOcr, status: nextStatus })
-        .where(eq(schema.receipts.id, row.id))
-        .returning();
-      return c.json(await toReceipt(updated!), 200);
+      // Claims point at lines by index, so they only survive an edit that leaves the lines alone
+      // (fixing the merchant or the tax, say).
+      const itemsChanged = JSON.stringify(existing.items) !== JSON.stringify(extraction.items);
+      const updated = await db.transaction(async (tx) => {
+        if (itemsChanged) {
+          await tx.delete(schema.receiptClaims).where(eq(schema.receiptClaims.receiptId, row.id));
+        }
+        const [next] = await tx
+          .update(schema.receipts)
+          .set({ ocr: nextOcr, status: nextStatus })
+          .where(eq(schema.receipts.id, row.id))
+          .returning();
+        return next!;
+      });
+      return c.json(await toReceipt(updated), 200);
     },
   );
 

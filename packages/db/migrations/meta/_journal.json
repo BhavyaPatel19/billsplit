@@ -29,6 +29,13 @@
       "when": 1794624785629,
       "tag": "0003_receipt_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794901225962,
+      "tag": "0004_claim_links",
+      "breakpoints": true
     }
   ]
 }
