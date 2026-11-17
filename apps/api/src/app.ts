@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
+import { ClaimEvents } from "./lib/claim-events.js";
 import { ApiError } from "./lib/errors.js";
 import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
@@ -94,8 +95,9 @@ export function createApp({
   app.route("/", groupRoutes(db, env));
   app.route("/", expenseRoutes(db));
   app.route("/", inviteRoutes(db));
-  app.route("/", receiptRoutes(db, storage, jobs, env));
-  app.route("/", claimRoutes(db, env));
+  const claimEvents = new ClaimEvents();
+  app.route("/", receiptRoutes(db, storage, jobs, env, claimEvents));
+  app.route("/", claimRoutes(db, env, claimEvents));
 
   app.get(
     "/openapi.json",

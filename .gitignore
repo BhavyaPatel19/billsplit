@@ -28,3 +28,6 @@ docker/data/
 
 # Claude Code local settings
 .claude/
+
+# Written by `next dev` on every run; not project documentation.
+apps/web/AGENTS.md

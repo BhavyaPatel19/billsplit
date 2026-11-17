@@ -5,6 +5,7 @@ import {
   evenPercents,
   formatInputAmount,
   receiptToExpenseDraft,
+  splitFromClaims,
   type ExpenseDraft,
   type LineDraft,
 } from "./expense-draft";
@@ -394,5 +395,50 @@ describe("receiptToExpenseDraft", () => {
     expect(evaluated.ok).toBe(true);
     if (!evaluated.ok) throw new Error(evaluated.error);
     expect(evaluated.total).toBe(1000);
+  });
+});
+
+describe("splitFromClaims", () => {
+  const everyone = [A, B, R];
+  const claim = (participantId: string, percent: number | null = null) => ({
+    itemIndex: 0,
+    participantId,
+    percent,
+  });
+
+  it("keeps everyone on a line nobody claimed", () => {
+    expect(splitFromClaims([], everyone)).toEqual({ kind: "equal", people: everyone, values: {} });
+  });
+
+  it("splits a tapped line equally between the people who tapped it", () => {
+    expect(splitFromClaims([claim(B), claim(R)], everyone)).toEqual({
+      kind: "equal",
+      people: [B, R],
+      values: {},
+    });
+  });
+
+  it("gives fixed portions their percent and shares the rest between the others", () => {
+    const split = splitFromClaims([claim(R, 10), claim(A), claim(B)], everyone);
+    expect(split).toEqual({
+      kind: "percent",
+      people: [R, A, B],
+      values: { [R]: "10", [A]: "45", [B]: "45" },
+    });
+    const uneven = splitFromClaims(
+      [claim(R, 10), claim(A), claim(B), claim("x")],
+      [...everyone, "x"],
+    );
+    const total = Object.values(uneven.values).reduce((sum, v) => sum + Number(v) * 100, 0);
+    expect(Math.round(total)).toBe(10_000);
+  });
+
+  it("leaves the split short when only fixed portions were claimed", () => {
+    expect(splitFromClaims([claim(R, 10)], everyone).values).toEqual({ [R]: "10" });
+  });
+
+  it("ignores claims by people who are no longer in the group", () => {
+    expect(splitFromClaims([claim("gone"), claim(B)], everyone).people).toEqual([B]);
+    expect(splitFromClaims([claim("gone")], everyone).people).toEqual(everyone);
   });
 });

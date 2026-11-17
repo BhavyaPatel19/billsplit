@@ -1,7 +1,12 @@
 import { ArrowLeft, ArrowRight, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { GroupDetailSchema, ReceiptSchema } from "@billsplit/contracts";
+import {
+  ClaimLinkResponseSchema,
+  GroupDetailSchema,
+  ReceiptClaimsResponseSchema,
+  ReceiptSchema,
+} from "@billsplit/contracts";
 import { Card } from "@/components/ui/card";
 import { serverApi } from "@/lib/server-api";
 import { ReceiptReview } from "./receipt-review";
@@ -18,9 +23,11 @@ export default async function ReviewReceiptPage({
   const { id, receiptId } = await params;
   if (!UUID_RE.test(id) || !UUID_RE.test(receiptId)) notFound();
 
-  const [group, receipt] = await Promise.all([
+  const [group, receipt, link, claims] = await Promise.all([
     serverApi(`/groups/${id}`, GroupDetailSchema),
     serverApi(`/groups/${id}/receipts/${receiptId}`, ReceiptSchema),
+    serverApi(`/groups/${id}/receipts/${receiptId}/claim-link`, ClaimLinkResponseSchema),
+    serverApi(`/groups/${id}/receipts/${receiptId}/claims`, ReceiptClaimsResponseSchema),
   ]);
   if (!group || !receipt) notFound();
 
@@ -51,7 +58,12 @@ export default async function ReviewReceiptPage({
       </div>
 
       {receipt.ocr ? (
-        <ReceiptReview group={group} receipt={receipt} />
+        <ReceiptReview
+          group={group}
+          receipt={receipt}
+          initialLink={link?.link ?? null}
+          initialClaims={claims?.claims ?? []}
+        />
       ) : (
         <Card className="flex flex-col gap-4">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
