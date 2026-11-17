@@ -408,6 +408,19 @@ describe("access control", () => {
     }
   });
 
+  it("answers 404, not 500, for ids that are not uuids", async () => {
+    for (const [path, init] of [
+      [`/api/groups/nope/expenses`, {}],
+      [`/api/groups/nope/balances`, {}],
+      [`/api/groups/${groupId}/expenses/nope`, {}],
+      [`/api/groups/${groupId}/expenses/nope`, { method: "PUT", body: dinner() }],
+      [`/api/groups/${groupId}/expenses/nope`, { method: "DELETE" }],
+      [`/api/groups/${groupId}/settlements/nope`, { method: "DELETE" }],
+    ] as const) {
+      expect((await api(path, { cookie: ana, ...init })).status, path).toBe(404);
+    }
+  });
+
   it("requires a session", async () => {
     expect((await api(`/api/groups/${groupId}/balances`)).status).toBe(401);
   });

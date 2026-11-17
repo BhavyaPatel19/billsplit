@@ -15,6 +15,7 @@ import {
 } from "@billsplit/contracts";
 import { requireMembership } from "../lib/authorize.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
+import { isUuid } from "../lib/ids.js";
 import {
   compute,
   groupBalances,
@@ -229,6 +230,7 @@ export function expenseRoutes(db: Db) {
     }),
     async (c) => {
       const { group } = await requireMembership(db, c.get("session")!.user.id, c.req.param("id"));
+      if (!isUuid(c.req.param("expenseId"))) throw notFound("Expense not found");
       const [row] = await db
         .update(schema.expenses)
         .set({ deletedAt: new Date() })
@@ -379,6 +381,7 @@ export function expenseRoutes(db: Db) {
         c.get("session")!.user.id,
         c.req.param("id"),
       );
+      if (!isUuid(c.req.param("settlementId"))) throw notFound("Payment not found");
       const [row] = await db
         .select()
         .from(schema.settlements)

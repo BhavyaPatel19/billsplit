@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { schema, type Db } from "@billsplit/db";
 import { forbidden, notFound } from "./errors.js";
+import { isUuid } from "./ids.js";
 
 export type Membership = {
   group: typeof schema.groups.$inferSelect;
@@ -18,6 +19,7 @@ export async function requireMembership(
   userId: string,
   groupId: string,
 ): Promise<Membership> {
+  if (!isUuid(groupId)) throw notFound("Group not found");
   const rows = await db
     .select({ group: schema.groups, me: schema.participants })
     .from(schema.participants)
