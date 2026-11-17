@@ -1,7 +1,11 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { GroupDetailSchema, ReceiptSchema } from "@billsplit/contracts";
+import {
+  GroupDetailSchema,
+  ReceiptClaimsResponseSchema,
+  ReceiptSchema,
+} from "@billsplit/contracts";
 import { serverApi } from "@/lib/server-api";
 import { ExpenseForm } from "./expense-form";
 
@@ -18,10 +22,14 @@ export default async function NewExpensePage({
 }) {
   const { id } = await params;
   const { receiptId } = await searchParams;
-  const [group, initialReceipt] = await Promise.all([
+  const fromReceipt = receiptId && UUID_RE.test(receiptId) ? receiptId : null;
+  const [group, initialReceipt, claims] = await Promise.all([
     serverApi(`/groups/${id}`, GroupDetailSchema),
-    receiptId && UUID_RE.test(receiptId)
-      ? serverApi(`/groups/${id}/receipts/${receiptId}`, ReceiptSchema)
+    fromReceipt
+      ? serverApi(`/groups/${id}/receipts/${fromReceipt}`, ReceiptSchema)
+      : Promise.resolve(null),
+    fromReceipt
+      ? serverApi(`/groups/${id}/receipts/${fromReceipt}/claims`, ReceiptClaimsResponseSchema)
       : Promise.resolve(null),
   ]);
   if (!group) notFound();
@@ -36,7 +44,11 @@ export default async function NewExpensePage({
       <h1 className="text-2xl font-semibold tracking-tight">
         {initialReceipt?.ocr ? "Split scanned receipt" : "Add an expense"}
       </h1>
-      <ExpenseForm group={group} initialReceipt={initialReceipt} />
+      <ExpenseForm
+        group={group}
+        initialReceipt={initialReceipt}
+        initialClaims={claims?.claims ?? []}
+      />
     </div>
   );
 }

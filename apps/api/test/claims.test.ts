@@ -422,6 +422,81 @@ describe("links that stop working", () => {
   });
 });
 
+describe("live updates", () => {
+  /** Reads `claims` events off a server-sent-events response, one at a time. */
+  function eventReader(res: Response) {
+    const reader = (res.body as ReadableStream<Uint8Array>).getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    return {
+      async next(): Promise<ReceiptClaim[]> {
+        for (;;) {
+          const end = buffer.indexOf("\n\n");
+          if (end >= 0) {
+            const block = buffer.slice(0, end);
+            buffer = buffer.slice(end + 2);
+            const data = block
+              .split("\n")
+              .filter((line) => line.startsWith("data:"))
+              .map((line) => line.slice(5).trim())
+              .join("");
+            if (block.includes("event: claims") && data) {
+              return ReceiptClaimsResponseSchema.parse(JSON.parse(data)).claims;
+            }
+            continue;
+          }
+          const { value, done } = await reader.read();
+          if (done) throw new Error("stream ended");
+          buffer += decoder.decode(value, { stream: true });
+        }
+      },
+      close: () => reader.cancel(),
+    };
+  }
+
+  it("streams the claims on connect and again after every change", async () => {
+    const id = await readyReceipt();
+    const { token } = await share(id);
+    const res = await api(`${claimsPath(id)}/stream`, { cookie: ana });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    // Without no-transform a compressing proxy holds the events back.
+    expect(res.headers.get("cache-control")).toBe("no-store, no-transform");
+    const events = eventReader(res);
+    try {
+      expect(await events.next()).toEqual([]);
+
+      await guestClaim(token, rahulId, [{ itemIndex: 0 }]);
+      expect(await events.next()).toEqual([
+        { itemIndex: 0, participantId: rahulId, percent: null },
+      ]);
+
+      await api(claimsPath(id), {
+        method: "PUT",
+        cookie: bo,
+        body: { participantId: anaId, items: [{ itemIndex: 0, percent: 25 }] },
+      });
+      expect(await events.next()).toHaveLength(2);
+
+      // Editing the lines clears the claims, and open pages hear about it.
+      const fewer = { ...EXTRACTION, items: EXTRACTION.items.slice(0, 2), totalCents: 3550 };
+      await api(`/api/groups/${groupId}/receipts/${id}`, {
+        method: "PATCH",
+        cookie: ana,
+        body: fewer,
+      });
+      expect(await events.next()).toEqual([]);
+    } finally {
+      await events.close();
+    }
+  });
+
+  it("is for members only", async () => {
+    expect((await api(`${claimsPath()}/stream`, { cookie: outsider })).status).toBe(404);
+    expect((await api(`${claimsPath()}/stream`)).status).toBe(401);
+  });
+});
+
 describe("editing the receipt", () => {
   it("keeps claims when the lines are untouched and clears them when lines change", async () => {
     const id = await readyReceipt();

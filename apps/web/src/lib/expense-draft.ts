@@ -3,6 +3,7 @@ import type {
   ExpenseInput,
   GroupDetail,
   Receipt,
+  ReceiptClaim,
   SplitInput,
 } from "@billsplit/contracts";
 import {
@@ -226,7 +227,34 @@ export function formatInputAmount(amountCents: number, digits: number): string {
 }
 
 /**
+ * How a line starts out, given who claimed it. Nobody: everyone, equally, as before. Plain
+ * taps: those people, equally. Any fixed portion ("a bite"): a percent split, where whoever
+ * tapped without a portion shares what the fixed portions leave over. If only fixed portions
+ * were claimed and they fall short of 100%, the split is left short on purpose, so the form
+ * asks the host who had the rest.
+ */
+export function splitFromClaims(claims: ReceiptClaim[], everyone: readonly string[]): SplitDraft {
+  const valid = claims.filter((c) => everyone.includes(c.participantId));
+  if (valid.length === 0) return { kind: "equal", people: [...everyone], values: {} };
+  const people = valid.map((c) => c.participantId);
+  if (valid.every((c) => c.percent === null)) return { kind: "equal", people, values: {} };
+
+  const fixed = valid.reduce((sum, c) => sum + (c.percent ?? 0), 0);
+  const sharers = valid.filter((c) => c.percent === null);
+  // Work in hundredths of a percent so the shares add back up exactly.
+  const rest = Math.max(0, Math.round((100 - fixed) * 100));
+  const values: Record<string, string> = {};
+  for (const c of valid) if (c.percent !== null) values[c.participantId] = String(c.percent);
+  sharers.forEach((c, i) => {
+    const part = Math.floor(rest / sharers.length) + (i < rest % sharers.length ? 1 : 0);
+    values[c.participantId] = String(part / 100);
+  });
+  return { kind: "percent", people, values };
+}
+
+/**
  * Turns a scanned receipt's OCR data into an itemized expense draft ready for tap-to-claim.
+ * Lines people already claimed (from a claim link or in the app) start with those people.
  * Whole-number quantities whose total divides evenly preserve unit price × qty; fractional or
  * bundled prices fall back to quantity `1` at the full line price so totals always match to the cent.
  */
@@ -234,6 +262,7 @@ export function receiptToExpenseDraft(
   receipt: Receipt,
   group: GroupDetail,
   makeKey: () => string,
+  claims: ReceiptClaim[] = [],
 ): ExpenseDraft {
   const ocr = receipt.ocr;
   const everyone = group.participants.map((p) => p.id);
@@ -245,7 +274,7 @@ export function receiptToExpenseDraft(
 
   const lines: LineDraft[] =
     ocr && ocr.items.length > 0
-      ? ocr.items.map((item) => {
+      ? ocr.items.map((item, index) => {
           const integerQty =
             Number.isInteger(item.quantity) &&
             item.quantity >= 1 &&
@@ -263,7 +292,10 @@ export function receiptToExpenseDraft(
             name: label,
             amount: formatInputAmount(Math.max(0, unitCents), digits),
             quantity,
-            split: { kind: "equal", people: everyone, values: {} },
+            split: splitFromClaims(
+              claims.filter((c) => c.itemIndex === index),
+              everyone,
+            ),
           };
         })
       : [

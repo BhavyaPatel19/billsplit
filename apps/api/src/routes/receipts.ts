@@ -22,6 +22,7 @@ import { receiptKeys, type ReceiptStorage } from "@billsplit/storage";
 import type { Env } from "../env.js";
 import type { ReceiptJobs } from "../jobs.js";
 import { requireMembership } from "../lib/authorize.js";
+import type { ClaimEvents } from "../lib/claim-events.js";
 import { ApiError, badRequest, conflict, forbidden, notFound } from "../lib/errors.js";
 import { isUuid } from "../lib/ids.js";
 import { validate } from "../lib/validate.js";
@@ -50,6 +51,7 @@ export function receiptRoutes(
   storage: ReceiptStorage | null,
   jobs: ReceiptJobs,
   limits: Limits,
+  claimEvents: ClaimEvents,
 ) {
   const router = new Hono<{ Variables: SessionVariables }>();
   router.use("/groups/:id/receipts", requireSession);
@@ -345,6 +347,7 @@ export function receiptRoutes(
           .returning();
         return next!;
       });
+      if (itemsChanged) claimEvents.publish(row.id);
       return c.json(await toReceipt(updated), 200);
     },
   );

@@ -4,7 +4,12 @@ import { ExternalLink, Plus, ReceiptText, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ExpenseDetailSchema, type GroupDetail, type Receipt } from "@billsplit/contracts";
+import {
+  ExpenseDetailSchema,
+  type GroupDetail,
+  type Receipt,
+  type ReceiptClaim,
+} from "@billsplit/contracts";
 import { currencyDigits } from "@billsplit/split-engine";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -30,10 +35,14 @@ const newKey = () => `line-${++keyCounter}`;
 export function ExpenseForm({
   group,
   initialReceipt = null,
+  initialClaims = [],
 }: {
   group: GroupDetail;
   initialReceipt?: Receipt | null;
+  /** What people already claimed on the receipt; those lines start with those people. */
+  initialClaims?: ReceiptClaim[];
 }) {
+  const claimedLines = new Set(initialClaims.map((c) => c.itemIndex)).size;
   const router = useRouter();
   const everyone = group.participants.map((p) => p.id);
   const nameOf = useMemo(
@@ -52,7 +61,7 @@ export function ExpenseForm({
 
   const [draft, setDraft] = useState<ExpenseDraft>(() =>
     initialReceipt?.ocr
-      ? receiptToExpenseDraft(initialReceipt, group, newKey)
+      ? receiptToExpenseDraft(initialReceipt, group, newKey, initialClaims)
       : {
           mode: "simple",
           description: "",
@@ -141,7 +150,9 @@ export function ExpenseForm({
                     Prefilled from {initialReceipt.ocr?.merchant ?? "scanned receipt"}
                   </p>
                   <p className="text-xs text-zinc-500">
-                    Tap people on each item to claim what they had.
+                    {claimedLines > 0
+                      ? `${claimedLines} of ${initialReceipt.ocr?.items.length ?? 0} lines start with the people who claimed them. Check the rest.`
+                      : "Tap people on each item to claim what they had."}
                   </p>
                 </div>
               </div>

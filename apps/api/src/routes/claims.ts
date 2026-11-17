@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { and, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { streamSSE } from "hono/streaming";
 import { describeRoute, resolver } from "hono-openapi";
 import type { z } from "zod";
 import { schema, type Db } from "@billsplit/db";
@@ -23,6 +24,7 @@ import {
   type SetClaimsBody,
 } from "@billsplit/contracts";
 import type { Env } from "../env.js";
+import type { ClaimEvents } from "../lib/claim-events.js";
 import { requireMembership } from "../lib/authorize.js";
 import { badRequest, conflict, forbidden, gone, notFound } from "../lib/errors.js";
 import { isUuid } from "../lib/ids.js";
@@ -35,6 +37,7 @@ type ClaimRow = typeof schema.receiptClaims.$inferSelect;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 const FULL_BP = 10_000;
+const KEEP_ALIVE_MS = 25_000;
 const json = (s: z.ZodType) => ({ "application/json": { schema: resolver(s) } });
 
 const toClaim = (c: ClaimRow): ReceiptClaim => ({
@@ -126,7 +129,7 @@ async function replaceClaims(
  * Claim links: the host shares /claim/<token>, and each friend taps what they had without an
  * account. Guests act only as placeholders, which merge into a real account later.
  */
-export function claimRoutes(db: Db, env: Pick<Env, "APP_URL">) {
+export function claimRoutes(db: Db, env: Pick<Env, "APP_URL">, events: ClaimEvents) {
   const router = new Hono<{ Variables: SessionVariables }>();
 
   const toLink = (l: LinkRow): ClaimLink => ({
@@ -188,6 +191,18 @@ export function claimRoutes(db: Db, env: Pick<Env, "APP_URL">) {
 
   router.use("/groups/:id/receipts/:receiptId/claim-link", requireSession);
   router.use("/groups/:id/receipts/:receiptId/claims", requireSession);
+  router.use("/groups/:id/receipts/:receiptId/claims/stream", requireSession);
+  // A compressing proxy (Next.js rewrites in development, for one) buffers a stream until it
+  // has enough to compress, so events would never arrive. `no-transform` tells it to pass the
+  // bytes through; X-Accel-Buffering does the same for nginx-style proxies. Set after the
+  // handler because the SSE helper writes its own Cache-Control.
+  router.use("/groups/:id/receipts/:receiptId/claims/stream", async (c, next) => {
+    await next();
+    if (c.res.headers.get("content-type")?.startsWith("text/event-stream")) {
+      c.res.headers.set("Cache-Control", "no-store, no-transform");
+      c.res.headers.set("X-Accel-Buffering", "no");
+    }
+  });
 
   router.post(
     "/groups/:id/receipts/:receiptId/claim-link",
@@ -316,7 +331,62 @@ export function claimRoutes(db: Db, env: Pick<Env, "APP_URL">) {
         throw notFound("Participant not found");
       }
       await db.transaction((tx) => replaceClaims(tx, receipt.id, body, null));
+      events.publish(receipt.id);
       return c.json({ claims: await claimsOf(receipt.id) }, 200);
+    },
+  );
+
+  router.get(
+    "/groups/:id/receipts/:receiptId/claims/stream",
+    describeRoute({
+      tags: ["claims"],
+      summary: "Live claims for a receipt (server-sent events)",
+      description:
+        "Sends a `claims` event with the full list straight away and again after every change, " +
+        "plus a comment every 25 seconds to keep proxies from closing the connection.",
+      responses: { 200: { description: "text/event-stream of `claims` events" } },
+    }),
+    async (c) => {
+      const { receipt } = await memberReceipt(
+        c.get("session")!.user.id,
+        c.req.param("id"),
+        c.req.param("receiptId"),
+      );
+      return streamSSE(c, async (stream) => {
+        let changed = true;
+        let wake = (): void => undefined;
+        const unsubscribe = events.subscribe(receipt.id, () => {
+          changed = true;
+          wake();
+        });
+        stream.onAbort(() => {
+          unsubscribe();
+          wake();
+        });
+        try {
+          while (!stream.aborted && !stream.closed) {
+            if (changed) {
+              changed = false;
+              await stream.writeSSE({
+                event: "claims",
+                data: JSON.stringify({ claims: await claimsOf(receipt.id) }),
+              });
+            } else {
+              await stream.write(": keep-alive\n\n");
+            }
+            if (changed) continue;
+            await new Promise<void>((resolve) => {
+              const timer = setTimeout(resolve, KEEP_ALIVE_MS);
+              wake = () => {
+                clearTimeout(timer);
+                resolve();
+              };
+            });
+          }
+        } finally {
+          unsubscribe();
+        }
+      });
     },
   );
 
@@ -474,6 +544,7 @@ export function claimRoutes(db: Db, env: Pick<Env, "APP_URL">) {
         throw forbidden(`${person.displayName} has an account and claims from inside the app`);
       }
       await db.transaction((tx) => replaceClaims(tx, receipt.id, body, link.id));
+      events.publish(receipt.id);
       return c.json({ claims: await claimsOf(receipt.id) }, 200);
     },
   );
