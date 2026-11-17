@@ -15,6 +15,7 @@ import type { Env } from "./env.js";
 import type { ReceiptJobs } from "./jobs.js";
 import type { Logger } from "./logger.js";
 import { sessionMiddleware, type SessionVariables } from "./middleware/session.js";
+import { claimRoutes } from "./routes/claims.js";
 import { healthRoutes } from "./routes/health.js";
 import { expenseRoutes } from "./routes/expenses.js";
 import { groupRoutes } from "./routes/groups.js";
@@ -94,6 +95,7 @@ export function createApp({
   app.route("/", expenseRoutes(db));
   app.route("/", inviteRoutes(db));
   app.route("/", receiptRoutes(db, storage, jobs, env));
+  app.route("/", claimRoutes(db, env));
 
   app.get(
     "/openapi.json",
