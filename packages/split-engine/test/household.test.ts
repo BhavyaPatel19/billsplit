@@ -299,12 +299,12 @@ describe("prorate: properties", () => {
         fc.integer({ min: 0, max: 61 }),
         fc.integer({ min: 0, max: 61 }),
         fc.integer({ min: 0, max: 5_000_000 }),
-        ({ lo, hi }, x, y) => {
+        ({ lo, hi }, x, y, amount) => {
           const later = lo + Math.min(Math.max(x, y), hi - lo);
           const earlier = lo + Math.min(Math.min(x, y), hi - lo);
           const period = { from: iso(lo), to: iso(hi) };
           const { shares } = prorate(
-            cents(1_000_000),
+            cents(amount),
             period,
             // Listed most-days first: a rounding tie goes to the lower index.
             [
