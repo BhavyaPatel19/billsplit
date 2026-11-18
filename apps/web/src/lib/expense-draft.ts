@@ -42,6 +42,11 @@ export interface ExpenseDraft {
   /** Simple mode. */
   amount: string;
   split: SplitDraft;
+  /**
+   * Simple mode, split by the household instead of picked people: the split as the API built it
+   * from room weights, move dates and trips (null while it loads or when it failed).
+   */
+  household?: { on: boolean; split: HouseholdSplitInput | null; error?: string };
   /** Itemized mode. */
   lines: LineDraft[];
   tax: string;
@@ -142,14 +147,15 @@ export function evaluateDraft(d: ExpenseDraft, currency: string, digits: number)
     if (d.mode === "simple") {
       const amount = money(d.amount, digits, "Amount");
       if (amount === 0) throw new DraftError("Enter the amount");
-      items = [
-        {
-          name: description,
-          amountCents: amount,
-          quantity: 1,
-          split: toSplit(d.split, digits, "Split"),
-        },
-      ];
+      let split: SplitInput;
+      if (d.household?.on) {
+        if (!d.household.split)
+          throw new DraftError(d.household.error ?? "Loading the household details…");
+        split = d.household.split;
+      } else {
+        split = toSplit(d.split, digits, "Split");
+      }
+      items = [{ name: description, amountCents: amount, quantity: 1, split }];
     } else {
       if (d.lines.length === 0) throw new DraftError("Add at least one item");
       items = d.lines.map((line, i) => {
@@ -232,6 +238,14 @@ function friendly(err: Error): string {
     }
   }
   return err.message;
+}
+
+/** First and last day of the calendar month a date falls in. */
+export function monthOf(date: string): { from: string; to: string } {
+  const [y, m] = date.split("-").map(Number) as [number, number];
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const mm = String(m).padStart(2, "0");
+  return { from: `${y}-${mm}-01`, to: `${y}-${mm}-${String(last).padStart(2, "0")}` };
 }
 
 /** Plain decimal string for input fields (`6000, 2 -> "60.00"`, `1200, 0 -> "1200"`). */

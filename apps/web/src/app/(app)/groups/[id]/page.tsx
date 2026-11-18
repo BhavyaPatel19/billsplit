@@ -6,6 +6,7 @@ import {
   BalancesResponseSchema,
   ExpenseListResponseSchema,
   GroupDetailSchema,
+  HouseholdResponseSchema,
   ReceiptListResponseSchema,
   RecurringListResponseSchema,
 } from "@billsplit/contracts";
@@ -17,6 +18,7 @@ import { serverApi } from "@/lib/server-api";
 import { ActivityPanel } from "./activity-panel";
 import { BalancesPanel } from "./balances-panel";
 import { GroupHeader } from "./group-header";
+import { HouseholdPanel } from "./household-panel";
 import { MembersPanel } from "./members-panel";
 import { ReceiptsPanel } from "./receipts-panel";
 import { RecurringPanel } from "./recurring-panel";
@@ -29,16 +31,19 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function GroupPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [group, list, balances, receiptList, activity, recurring, meta] = await Promise.all([
-    serverApi(`/groups/${id}`, GroupDetailSchema),
-    serverApi(`/groups/${id}/expenses`, ExpenseListResponseSchema),
-    serverApi(`/groups/${id}/balances`, BalancesResponseSchema),
-    serverApi(`/groups/${id}/receipts`, ReceiptListResponseSchema),
-    serverApi(`/groups/${id}/activity?limit=15`, ActivityListResponseSchema),
-    serverApi(`/groups/${id}/recurring`, RecurringListResponseSchema),
-    fetchMeta(),
-  ]);
-  if (!group || !list || !balances || !receiptList || !activity || !recurring) notFound();
+  const [group, list, balances, receiptList, activity, recurring, household, meta] =
+    await Promise.all([
+      serverApi(`/groups/${id}`, GroupDetailSchema),
+      serverApi(`/groups/${id}/expenses`, ExpenseListResponseSchema),
+      serverApi(`/groups/${id}/balances`, BalancesResponseSchema),
+      serverApi(`/groups/${id}/receipts`, ReceiptListResponseSchema),
+      serverApi(`/groups/${id}/activity?limit=15`, ActivityListResponseSchema),
+      serverApi(`/groups/${id}/recurring`, RecurringListResponseSchema),
+      serverApi(`/groups/${id}/household`, HouseholdResponseSchema),
+      fetchMeta(),
+    ]);
+  if (!group || !list || !balances || !receiptList || !activity || !recurring || !household)
+    notFound();
 
   const name = (pid: string) => {
     const p = group.participants.find((x) => x.id === pid);
@@ -53,6 +58,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
         <div className="flex flex-col gap-6">
           <BalancesPanel group={group} balances={balances} />
           <MembersPanel group={group} />
+          <HouseholdPanel group={group} initial={household} />
         </div>
 
         <div className="flex flex-col gap-8">

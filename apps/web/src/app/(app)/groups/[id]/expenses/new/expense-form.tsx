@@ -3,11 +3,14 @@
 import { ExternalLink, Plus, ReceiptText, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ExpenseDetailSchema,
+  HouseholdSplitSchema,
   RecurringExpenseSchema,
+  type ProrationBasis,
   type GroupDetail,
+  type HouseholdSplitInput,
   type Receipt,
   type ReceiptClaim,
 } from "@billsplit/contracts";
@@ -19,6 +22,7 @@ import { api, ApiClientError } from "@/lib/api-client";
 import {
   evaluateDraft,
   evenPercents,
+  monthOf,
   receiptToExpenseDraft,
   type ExpenseDraft,
   type LineDraft,
@@ -96,6 +100,33 @@ export function ExpenseForm({
       ...d,
       lines: d.lines.map((l) => (l.key === key ? { ...l, ...patch } : l)),
     }));
+
+  // "Split by household": the API builds the split from room weights, move dates and trips.
+  const householdOn = draft.mode === "simple" && Boolean(draft.household?.on);
+  const [basis, setBasis] = useState<ProrationBasis>("rent");
+  const [period, setPeriod] = useState(() => monthOf(draft.spentOn || todayIso()));
+  useEffect(() => {
+    if (!householdOn) return;
+    let cancelled = false;
+    const query = new URLSearchParams({ basis, from: period.from, to: period.to });
+    api(`/groups/${group.id}/household/split?${query}`, HouseholdSplitSchema)
+      .then((split) => {
+        if (!cancelled) set({ household: { on: true, split } });
+      })
+      .catch((err: unknown) => {
+        if (!cancelled)
+          set({
+            household: {
+              on: true,
+              split: null,
+              error: err instanceof ApiClientError ? err.message : "Could not load the household",
+            },
+          });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [householdOn, basis, period.from, period.to, group.id]);
 
   const submit = async () => {
     setTouched(true);
@@ -314,13 +345,50 @@ export function ExpenseForm({
                 onChange={(e) => set({ amount: e.target.value })}
               />
             </label>
-            <SplitEditor
-              draft={draft.split}
-              onChange={(split) => set({ split })}
-              everyone={everyone}
-              nameOf={nameOf}
-              kinds={["equal", "exact", "percent", "shares"]}
-            />
+            <div
+              className="flex gap-1 rounded-lg bg-zinc-100 p-1 text-xs dark:bg-zinc-800"
+              role="tablist"
+              aria-label="How to split"
+            >
+              {([false, true] as const).map((on) => (
+                <button
+                  key={String(on)}
+                  type="button"
+                  role="tab"
+                  aria-selected={householdOn === on}
+                  onClick={() =>
+                    set({ household: on ? { on: true, split: null } : { on: false, split: null } })
+                  }
+                  className={cn(
+                    "flex-1 rounded-md px-3 py-1.5 font-medium",
+                    householdOn === on
+                      ? "bg-white shadow-sm dark:bg-zinc-950"
+                      : "text-zinc-600 dark:text-zinc-400",
+                  )}
+                >
+                  {on ? "By household (rent, utilities)" : "Pick people"}
+                </button>
+              ))}
+            </div>
+            {householdOn ? (
+              <HouseholdOptions
+                groupId={group.id}
+                basis={basis}
+                onBasis={setBasis}
+                period={period}
+                onPeriod={setPeriod}
+                split={draft.household?.split ?? null}
+                nameOf={nameOf}
+              />
+            ) : (
+              <SplitEditor
+                draft={draft.split}
+                onChange={(split) => set({ split })}
+                everyone={everyone}
+                nameOf={nameOf}
+                kinds={["equal", "exact", "percent", "shares"]}
+              />
+            )}
           </Card>
         ) : (
           <>
@@ -438,6 +506,100 @@ export function ExpenseForm({
           {repeating ? "Save recurring expense" : "Save expense"}
         </Button>
       </aside>
+    </div>
+  );
+}
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+const daysBetween = (from: string, to: string) =>
+  Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1;
+
+function HouseholdOptions({
+  groupId,
+  basis,
+  onBasis,
+  period,
+  onPeriod,
+  split,
+  nameOf,
+}: {
+  groupId: string;
+  basis: ProrationBasis;
+  onBasis: (b: ProrationBasis) => void;
+  period: { from: string; to: string };
+  onPeriod: (p: { from: string; to: string }) => void;
+  split: HouseholdSplitInput | null;
+  nameOf: Map<string, string>;
+}) {
+  const length = daysBetween(period.from, period.to);
+  const daysFor = (r: HouseholdSplitInput["residents"][number]) => {
+    const from = r.movedInOn && r.movedInOn > period.from ? r.movedInOn : period.from;
+    const to = r.movedOutOn && r.movedOutOn < period.to ? r.movedOutOn : period.to;
+    const there = Math.max(0, daysBetween(from, to));
+    if (basis === "rent") return there;
+    const away = (r.away ?? []).reduce((n, a) => n + daysBetween(a.from, a.to), 0);
+    return Math.max(0, there - away);
+  };
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          Kind of bill
+          <select
+            className={inputClass}
+            value={basis}
+            onChange={(e) => onBasis(e.target.value as ProrationBasis)}
+          >
+            <option value="rent">Rent: by room and days living there</option>
+            <option value="usage">Utilities: by days at home</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          Covers from
+          <input
+            type="date"
+            className={inputClass}
+            value={period.from}
+            onChange={(e) => e.target.value && onPeriod({ ...period, from: e.target.value })}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          to
+          <input
+            type="date"
+            className={inputClass}
+            value={period.to}
+            min={period.from}
+            onChange={(e) => e.target.value && onPeriod({ ...period, to: e.target.value })}
+          />
+        </label>
+      </div>
+      {split ? (
+        <ul className="flex flex-col gap-1 text-sm">
+          {split.residents.map((r) => (
+            <li key={r.participantId} className="flex justify-between gap-3">
+              <span>{nameOf.get(r.participantId) ?? "Someone"}</span>
+              <span className="text-xs text-zinc-500">
+                {daysFor(r)} of {length} days
+                {basis === "rent" && r.weight !== undefined ? ` · room weight ${r.weight}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="text-xs text-zinc-500">
+        {basis === "rent"
+          ? "Bigger rooms pay more, and anyone who moved in or out pays for the days they lived there. Trips don't change rent."
+          : "Each person pays for the days they were home, so trips come off."}{" "}
+        <Link
+          href={`/groups/${groupId}#household`}
+          className="font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+        >
+          Edit rooms, move dates and trips
+        </Link>
+        . Repeating household bills use each period&apos;s details automatically.
+      </p>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import {
   evaluateDraft,
   evenPercents,
   formatInputAmount,
+  monthOf,
   receiptToExpenseDraft,
   splitFromClaims,
   type ExpenseDraft,
@@ -440,5 +441,50 @@ describe("splitFromClaims", () => {
   it("ignores claims by people who are no longer in the group", () => {
     expect(splitFromClaims([claim("gone"), claim(B)], everyone).people).toEqual([B]);
     expect(splitFromClaims([claim("gone")], everyone).people).toEqual(everyone);
+  });
+});
+
+describe("household split in the form", () => {
+  const household = {
+    kind: "household" as const,
+    basis: "rent" as const,
+    period: { from: "2026-11-01", to: "2026-11-30" },
+    residents: [{ participantId: A }, { participantId: B, movedInOn: "2026-11-16" }],
+  };
+
+  it("previews a prorated split exactly as the server will", () => {
+    const r = evaluateDraft(
+      base({ amount: "3000", household: { on: true, split: household } }),
+      "USD",
+      2,
+    );
+    expect(r).toMatchObject({ ok: true, totals: { [A]: 200_000, [B]: 100_000 } });
+    if (r.ok) expect(r.input.items[0]!.split).toEqual(household);
+  });
+
+  it("waits for the household to load, and shows why it could not", () => {
+    expect(evaluateDraft(base({ household: { on: true, split: null } }), "USD", 2)).toEqual({
+      ok: false,
+      error: "Loading the household details…",
+    });
+    expect(
+      evaluateDraft(
+        base({ household: { on: true, split: null, error: "Nobody lived there" } }),
+        "USD",
+        2,
+      ),
+    ).toEqual({ ok: false, error: "Nobody lived there" });
+  });
+
+  it("uses the picked people when the household option is off", () => {
+    const r = evaluateDraft(base({ household: { on: false, split: household } }), "USD", 2);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.input.items[0]!.split.kind).toBe("equal");
+  });
+
+  it("finds the calendar month of a date", () => {
+    expect(monthOf("2026-11-17")).toEqual({ from: "2026-11-01", to: "2026-11-30" });
+    expect(monthOf("2028-02-10")).toEqual({ from: "2028-02-01", to: "2028-02-29" });
+    expect(monthOf("2026-12-31")).toEqual({ from: "2026-12-01", to: "2026-12-31" });
   });
 });
