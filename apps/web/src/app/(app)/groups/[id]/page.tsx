@@ -7,6 +7,7 @@ import {
   ExpenseListResponseSchema,
   GroupDetailSchema,
   HouseholdResponseSchema,
+  PantryListResponseSchema,
   ReceiptListResponseSchema,
   RecurringListResponseSchema,
 } from "@billsplit/contracts";
@@ -20,6 +21,7 @@ import { BalancesPanel } from "./balances-panel";
 import { GroupHeader } from "./group-header";
 import { HouseholdPanel } from "./household-panel";
 import { MembersPanel } from "./members-panel";
+import { PantryPanel } from "./pantry-panel";
 import { ReceiptsPanel } from "./receipts-panel";
 import { RecurringPanel } from "./recurring-panel";
 
@@ -31,7 +33,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function GroupPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [group, list, balances, receiptList, activity, recurring, household, meta] =
+  const [group, list, balances, receiptList, activity, recurring, household, pantry, meta] =
     await Promise.all([
       serverApi(`/groups/${id}`, GroupDetailSchema),
       serverApi(`/groups/${id}/expenses`, ExpenseListResponseSchema),
@@ -40,9 +42,19 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
       serverApi(`/groups/${id}/activity?limit=15`, ActivityListResponseSchema),
       serverApi(`/groups/${id}/recurring`, RecurringListResponseSchema),
       serverApi(`/groups/${id}/household`, HouseholdResponseSchema),
+      serverApi(`/groups/${id}/pantry`, PantryListResponseSchema),
       fetchMeta(),
     ]);
-  if (!group || !list || !balances || !receiptList || !activity || !recurring || !household)
+  if (
+    !group ||
+    !list ||
+    !balances ||
+    !receiptList ||
+    !activity ||
+    !recurring ||
+    !household ||
+    !pantry
+  )
     notFound();
 
   const name = (pid: string) => {
@@ -124,6 +136,8 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
           </div>
 
           <RecurringPanel group={group} initial={recurring.recurring} />
+
+          <PantryPanel group={group} initial={pantry.runs} />
 
           <ReceiptsPanel
             group={group}

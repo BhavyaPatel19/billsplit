@@ -19,11 +19,12 @@ import {
   type OcrConfidence,
   type Receipt,
   type ReceiptClaim,
+  PantryRunSchema,
 } from "@billsplit/contracts";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ApiClientError } from "@/lib/api-client";
+import { api, ApiClientError } from "@/lib/api-client";
 import { money } from "@/lib/money";
 import {
   evaluateReceiptReviewDraft,
@@ -78,7 +79,7 @@ export function ReceiptReview({
     return receiptToReviewDraft(receipt.ocr, group.currency, nextLineKey);
   });
   const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState<"stay" | "split" | null>(null);
+  const [saving, setSaving] = useState<"stay" | "split" | "pantry" | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedBanner, setSavedBanner] = useState<string | null>(null);
 
@@ -139,13 +140,31 @@ export function ReceiptReview({
     }));
   };
 
-  const persist = async (mode: "stay" | "split") => {
+  /** Split it now, or keep its lines as shared pantry stock to settle by use later. */
+  const goOn = async (mode: "split" | "pantry", receiptId: string) => {
+    if (mode === "split") {
+      router.push(`/groups/${group.id}/expenses/new?receiptId=${receiptId}`);
+      return;
+    }
+    await api(`/groups/${group.id}/pantry`, PantryRunSchema, { body: { receiptId } });
+    router.push(`/groups/${group.id}#pantry`);
+    router.refresh();
+  };
+
+  const persist = async (mode: "stay" | "split" | "pantry") => {
     if (!evaluation.ok) {
       setSaveError(evaluation.error);
       return;
     }
-    if (mode === "split" && !dirty) {
-      router.push(`/groups/${group.id}/expenses/new?receiptId=${currentReceipt.id}`);
+    if (mode !== "stay" && !dirty) {
+      setSaving(mode);
+      setSaveError(null);
+      try {
+        await goOn(mode, currentReceipt.id);
+      } catch (err) {
+        setSaveError(err instanceof ApiClientError ? err.message : "Could not stock the pantry");
+        setSaving(null);
+      }
       return;
     }
 
@@ -165,9 +184,8 @@ export function ReceiptReview({
       const updated = ReceiptSchema.parse(await res.json());
       setCurrentReceipt(updated);
       setDirty(false);
-      if (mode === "split") {
-        router.push(`/groups/${group.id}/expenses/new?receiptId=${updated.id}`);
-        router.refresh();
+      if (mode !== "stay") {
+        await goOn(mode, updated.id);
         return;
       }
       setSavedBanner(
@@ -472,6 +490,16 @@ export function ReceiptReview({
             onClick={() => void persist("stay")}
           >
             <Save className="size-4" aria-hidden /> Save review
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            loading={saving === "pantry"}
+            disabled={saving !== null || !evaluation.ok}
+            onClick={() => void persist("pantry")}
+            title="Bulk shop? Keep the items as shared stock and split by what people use."
+          >
+            {dirty ? "Save & stock the pantry" : "Stock the pantry"}
           </Button>
           <Button
             type="button"
