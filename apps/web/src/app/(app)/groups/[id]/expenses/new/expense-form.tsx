@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   ExpenseDetailSchema,
+  RecurringExpenseSchema,
   type GroupDetail,
   type Receipt,
   type ReceiptClaim,
@@ -14,7 +15,7 @@ import { currencyDigits } from "@billsplit/split-engine";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ApiClientError } from "@/lib/api-client";
+import { api, ApiClientError } from "@/lib/api-client";
 import {
   evaluateDraft,
   evenPercents,
@@ -24,6 +25,7 @@ import {
   type SplitDraft,
 } from "@/lib/expense-draft";
 import { money } from "@/lib/money";
+import { REPEAT_OPTIONS, toRecurringBody, type RepeatChoice } from "@/lib/recurring";
 import { cn } from "@/lib/utils";
 
 const inputClass =
@@ -80,6 +82,9 @@ export function ExpenseForm({
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  const [repeat, setRepeat] = useState<RepeatChoice>("none");
+  const [repeatUntil, setRepeatUntil] = useState("");
+  const repeating = repeat !== "none";
 
   const result = useMemo(
     () => evaluateDraft(draft, group.currency, digits),
@@ -98,7 +103,8 @@ export function ExpenseForm({
     setSubmitting(true);
     setServerError(null);
     try {
-      await fetchCreate();
+      if (repeating) await createRecurring();
+      else await fetchCreate();
     } catch (err) {
       setServerError(err instanceof ApiClientError ? err.message : "Could not save the expense");
       setSubmitting(false);
@@ -118,6 +124,16 @@ export function ExpenseForm({
     }
     const expense = ExpenseDetailSchema.parse(await res.json());
     router.push(`/groups/${group.id}/expenses/${expense.id}`);
+    router.refresh();
+  };
+
+  /** A repeating bill is saved as a schedule; the first posting is created if it is due. */
+  const createRecurring = async () => {
+    if (!result.ok) return;
+    const body = toRecurringBody(result.input, repeat, repeatUntil);
+    if (!body) return;
+    await api(`/groups/${group.id}/recurring`, RecurringExpenseSchema, { body });
+    router.push(`/groups/${group.id}#recurring`);
     router.refresh();
   };
 
@@ -203,7 +219,7 @@ export function ExpenseForm({
               />
             </label>
             <label className="flex flex-col gap-1.5 text-sm font-medium">
-              Date
+              {repeating ? "First date" : "Date"}
               <input
                 type="date"
                 className={inputClass}
@@ -212,6 +228,42 @@ export function ExpenseForm({
               />
             </label>
           </div>
+          {initialReceipt ? null : (
+            <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
+              <label className="flex flex-col gap-1.5 text-sm font-medium">
+                Repeat
+                <select
+                  className={inputClass}
+                  value={repeat}
+                  onChange={(e) => setRepeat(e.target.value as RepeatChoice)}
+                >
+                  {REPEAT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {repeating ? (
+                <label className="flex flex-col gap-1.5 text-sm font-medium">
+                  Until (optional)
+                  <input
+                    type="date"
+                    className={inputClass}
+                    value={repeatUntil}
+                    min={draft.spentOn}
+                    onChange={(e) => setRepeatUntil(e.target.value)}
+                  />
+                </label>
+              ) : null}
+              {repeating ? (
+                <p className="text-xs text-zinc-500 sm:col-span-2">
+                  Posted automatically on each date with the same split. You can pause, skip or stop
+                  it from the group page.
+                </p>
+              ) : null}
+            </div>
+          )}
           <label className="flex flex-col gap-1.5 text-sm font-medium">
             Paid by
             <select
@@ -383,7 +435,7 @@ export function ExpenseForm({
         </Card>
         {serverError ? <Alert tone="error">{serverError}</Alert> : null}
         <Button size="lg" onClick={submit} loading={submitting} disabled={!result.ok && touched}>
-          Save expense
+          {repeating ? "Save recurring expense" : "Save expense"}
         </Button>
       </aside>
     </div>

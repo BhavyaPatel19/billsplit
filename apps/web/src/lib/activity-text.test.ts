@@ -24,6 +24,21 @@ describe("describeActivity", () => {
         {
           ...base,
           actorId: A,
+          kind: "expense.added",
+          data: {
+            description: "Rent",
+            totalCents: 200_000,
+            currency: "USD",
+            payerId: A,
+            recurringId: B,
+          },
+        },
+        "Rent was posted ($2,000.00, repeats)",
+      ],
+      [
+        {
+          ...base,
+          actorId: A,
           kind: "payment.recorded",
           data: { fromId: B, toId: A, amountCents: 1250, currency: "USD" },
         },

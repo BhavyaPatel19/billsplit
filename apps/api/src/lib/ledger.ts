@@ -217,6 +217,7 @@ export function toSummary(
     payerId: resolver.resolve(version.payerId),
     totalCents: version.totalCents,
     shares: resolveShares(shares, resolver),
+    recurringId: expense.recurringExpenseId,
     createdAt: expense.createdAt.toISOString(),
     updatedAt: version.createdAt.toISOString(),
   };

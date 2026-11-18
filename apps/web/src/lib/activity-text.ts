@@ -6,6 +6,8 @@ export function describeActivity(a: Activity, name: (participantId: string) => s
   const who = a.actorId ? name(a.actorId) : "Someone";
   switch (a.kind) {
     case "expense.added":
+      if (a.data.recurringId)
+        return `${a.data.description} was posted (${money(a.data.totalCents, a.data.currency)}, repeats)`;
       return `${who} added ${a.data.description} (${money(a.data.totalCents, a.data.currency)})`;
     case "expense.edited":
       return `${who} edited ${a.data.description} (now ${money(a.data.totalCents, a.data.currency)})`;

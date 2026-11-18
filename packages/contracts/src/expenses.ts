@@ -82,6 +82,8 @@ export const ExpenseSummarySchema = z.object({
   payerId: z.uuid(),
   totalCents: CentsSchema,
   shares: z.array(ExpenseShareSchema),
+  /** The recurring schedule that posted it, if any. */
+  recurringId: z.uuid().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

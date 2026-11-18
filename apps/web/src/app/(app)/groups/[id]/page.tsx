@@ -1,4 +1,4 @@
-import { Plus, Receipt } from "lucide-react";
+import { Plus, Receipt, Repeat } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -7,6 +7,7 @@ import {
   ExpenseListResponseSchema,
   GroupDetailSchema,
   ReceiptListResponseSchema,
+  RecurringListResponseSchema,
 } from "@billsplit/contracts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,6 +19,7 @@ import { BalancesPanel } from "./balances-panel";
 import { GroupHeader } from "./group-header";
 import { MembersPanel } from "./members-panel";
 import { ReceiptsPanel } from "./receipts-panel";
+import { RecurringPanel } from "./recurring-panel";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -27,15 +29,16 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function GroupPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [group, list, balances, receiptList, activity, meta] = await Promise.all([
+  const [group, list, balances, receiptList, activity, recurring, meta] = await Promise.all([
     serverApi(`/groups/${id}`, GroupDetailSchema),
     serverApi(`/groups/${id}/expenses`, ExpenseListResponseSchema),
     serverApi(`/groups/${id}/balances`, BalancesResponseSchema),
     serverApi(`/groups/${id}/receipts`, ReceiptListResponseSchema),
     serverApi(`/groups/${id}/activity?limit=15`, ActivityListResponseSchema),
+    serverApi(`/groups/${id}/recurring`, RecurringListResponseSchema),
     fetchMeta(),
   ]);
-  if (!group || !list || !balances || !receiptList || !activity) notFound();
+  if (!group || !list || !balances || !receiptList || !activity || !recurring) notFound();
 
   const name = (pid: string) => {
     const p = group.participants.find((x) => x.id === pid);
@@ -80,7 +83,15 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
                         className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{e.description}</p>
+                          <p className="flex items-center gap-1.5 text-sm font-medium">
+                            <span className="truncate">{e.description}</span>
+                            {e.recurringId ? (
+                              <Repeat
+                                className="size-3.5 shrink-0 text-zinc-400"
+                                aria-label="Posted by a recurring schedule"
+                              />
+                            ) : null}
+                          </p>
                           <p className="text-xs text-zinc-500">
                             {e.spentOn} · {name(e.payerId)} paid {money(e.totalCents, e.currency)}
                           </p>
@@ -105,6 +116,8 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
               </ul>
             )}
           </div>
+
+          <RecurringPanel group={group} initial={recurring.recurring} />
 
           <ReceiptsPanel
             group={group}
