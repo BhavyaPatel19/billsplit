@@ -161,6 +161,8 @@ services:
         API_URL: http://api:4000
     environment:
       API_URL: http://api:4000
+      # The browser reaches local S3 (RustFS) here; the CSP allows it for receipt images and uploads.
+      RECEIPTS_ORIGIN: http://localhost:9000
     ports:
       - "3000:3000"
     depends_on:

@@ -68,6 +68,8 @@ const EnvSchema = z
       .enum(["true", "false"])
       .default("true")
       .transform((v) => v === "true"),
+    /** Per-IP limits on public and token endpoints. Defaults to on in production. */
+    RATE_LIMITS_ENABLED: z.enum(["true", "false"]).optional(),
     /** Post recurring expenses on a schedule. Off: tests post them by hand. */
     RECURRING_ENABLED: z
       .enum(["true", "false"])
@@ -83,6 +85,10 @@ const EnvSchema = z
     EMAIL_TRANSPORT:
       e.EMAIL_TRANSPORT ?? (e.NODE_ENV === "production" ? ("ses" as const) : ("smtp" as const)),
     CORS_ORIGINS: Array.from(new Set([e.APP_URL, ...e.CORS_ORIGINS])),
+    RATE_LIMITS_ENABLED:
+      e.RATE_LIMITS_ENABLED === undefined
+        ? e.NODE_ENV === "production"
+        : e.RATE_LIMITS_ENABLED === "true",
   }));
 
 export type Env = z.infer<typeof EnvSchema>;

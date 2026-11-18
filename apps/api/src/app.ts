@@ -17,6 +17,7 @@ import type { ReceiptJobs } from "./jobs.js";
 import type { Logger } from "./logger.js";
 import type { Notifier } from "./notifications.js";
 import type { RecurringPoster } from "./recurring.js";
+import { RateLimiter } from "./middleware/rate-limit.js";
 import { sessionMiddleware, type SessionVariables } from "./middleware/session.js";
 import { activityRoutes } from "./routes/activity.js";
 import { claimRoutes } from "./routes/claims.js";
@@ -86,6 +87,19 @@ export function createApp({
       "request",
     );
   });
+
+  // Per-IP limits. Better Auth limits its own routes (sign-in, sign-up, reset) separately.
+  const limiter = new RateLimiter(env.RATE_LIMITS_ENABLED);
+  const minute = 60_000;
+  app.use("*", limiter.middleware({ name: "all", windowMs: minute, max: 600 }));
+  // Claim links and invites are opened by people without accounts, holding only a token.
+  app.use("/claim-links/*", limiter.middleware({ name: "claim", windowMs: minute, max: 60 }));
+  app.use(
+    "/claim-links/:token/guests",
+    limiter.middleware({ name: "claim-guest", windowMs: minute, max: 10, methods: ["POST"] }),
+  );
+  app.use("/invites/*", limiter.middleware({ name: "invite", windowMs: minute, max: 30 }));
+  app.use("/unsubscribe/*", limiter.middleware({ name: "unsubscribe", windowMs: minute, max: 20 }));
 
   const dbProbe = async (): Promise<ReadinessCheck> => {
     const start = performance.now();

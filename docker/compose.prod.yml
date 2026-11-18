@@ -58,6 +58,8 @@ services:
     environment:
       API_URL: http://api:4000
       APP_VERSION: ${IMAGE_TAG}
+      # Presigned receipt URLs point here; the CSP allows it for images and uploads.
+      RECEIPTS_ORIGIN: https://${RECEIPTS_BUCKET}.s3.${AWS_REGION}.amazonaws.com
     depends_on:
       api:
         condition: service_healthy
