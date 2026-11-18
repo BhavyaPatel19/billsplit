@@ -9,6 +9,7 @@ import {
   type MeResponse,
   type NotificationPrefs,
 } from "@billsplit/contracts";
+import { exportAccount } from "../lib/account.js";
 import { validate } from "../lib/validate.js";
 import type { Notifier } from "../notifications.js";
 import { requireSession, type SessionVariables } from "../middleware/session.js";
@@ -45,6 +46,22 @@ export function meRoutes(db: Db, notifier: Notifier) {
         session: { expiresAt: session.expiresAt.toISOString() },
       };
       return c.json(body, 200);
+    },
+  );
+
+  router.get(
+    "/me/export",
+    describeRoute({
+      tags: ["account"],
+      summary: "Download everything BillSplit holds about you, as JSON",
+      responses: { 200: { description: "JSON file" } },
+    }),
+    requireSession,
+    async (c) => {
+      const data = await exportAccount(db, c.get("session")!.user.id);
+      c.header("content-disposition", 'attachment; filename="billsplit-export.json"');
+      c.header("cache-control", "no-store");
+      return c.json(data, 200);
     },
   );
 

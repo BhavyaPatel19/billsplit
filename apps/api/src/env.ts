@@ -68,6 +68,11 @@ const EnvSchema = z
       .enum(["true", "false"])
       .default("true")
       .transform((v) => v === "true"),
+    /**
+     * Refuse passwords found in breaches (Have I Been Pwned range API: only the first five
+     * characters of the SHA-1 leave the server). Defaults to on in production.
+     */
+    HIBP_ENABLED: z.enum(["true", "false"]).optional(),
     /** Per-IP limits on public and token endpoints. Defaults to on in production. */
     RATE_LIMITS_ENABLED: z.enum(["true", "false"]).optional(),
     /** Post recurring expenses on a schedule. Off: tests post them by hand. */
@@ -85,6 +90,8 @@ const EnvSchema = z
     EMAIL_TRANSPORT:
       e.EMAIL_TRANSPORT ?? (e.NODE_ENV === "production" ? ("ses" as const) : ("smtp" as const)),
     CORS_ORIGINS: Array.from(new Set([e.APP_URL, ...e.CORS_ORIGINS])),
+    HIBP_ENABLED:
+      e.HIBP_ENABLED === undefined ? e.NODE_ENV === "production" : e.HIBP_ENABLED === "true",
     RATE_LIMITS_ENABLED:
       e.RATE_LIMITS_ENABLED === undefined
         ? e.NODE_ENV === "production"

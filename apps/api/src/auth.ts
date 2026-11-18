@@ -2,6 +2,8 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { schema, type Db } from "@billsplit/db";
 import { hash, verify } from "@node-rs/argon2";
 import { betterAuth } from "better-auth";
+import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
+import { handOverGroups } from "./lib/account.js";
 import type { Mailer } from "./email.js";
 import type { Env } from "./env.js";
 import type { Logger } from "./logger.js";
@@ -101,6 +103,26 @@ export function createAuth({ env, db, mailer, logger }: AuthDeps) {
             },
           }
         : {},
+
+    user: {
+      // Password-confirmed. Groups keep their history: the person becomes a placeholder, and
+      // groups they own pass to another member (see handOverGroups).
+      deleteUser: {
+        enabled: true,
+        beforeDelete: async (user) => {
+          await handOverGroups(db, user.id);
+        },
+      },
+    },
+
+    plugins: env.HIBP_ENABLED
+      ? [
+          haveIBeenPwned({
+            customPasswordCompromisedMessage:
+              "That password has appeared in a data breach. Please choose a different one.",
+          }),
+        ]
+      : [],
 
     session: {
       expiresIn: 60 * 60 * 24 * 30,
