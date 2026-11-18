@@ -30,6 +30,7 @@ export {
   type ExactSplit,
   type PercentSplit,
   type SharesSplit,
+  type HouseholdSplit,
   PERCENT_TOLERANCE,
   splitAmount,
   splitParticipants,

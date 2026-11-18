@@ -79,6 +79,14 @@ export class ParticipantResolver {
         };
       case "shares":
         return { kind: "shares", shares: merge(split.shares, "shares", (id) => this.resolve(id)) };
+      case "household": {
+        // A placeholder merged into someone already on the bill: keep the first entry.
+        const seen = new Set<string>();
+        const residents = split.residents
+          .map((r) => ({ ...r, participantId: this.resolve(r.participantId) }))
+          .filter((r) => !seen.has(r.participantId) && seen.add(r.participantId));
+        return { ...split, residents };
+      }
     }
   }
 }
@@ -113,6 +121,19 @@ function toEngineSplit(split: SplitInput): Split {
       return { kind: "percent", percents: split.percents };
     case "shares":
       return { kind: "shares", shares: split.shares };
+    case "household":
+      return {
+        kind: "household",
+        basis: split.basis,
+        period: split.period,
+        residents: split.residents.map((r) => ({
+          participantId: r.participantId,
+          ...(r.weight !== undefined ? { weight: r.weight } : {}),
+          ...(r.movedInOn ? { movedInOn: r.movedInOn } : {}),
+          ...(r.movedOutOn ? { movedOutOn: r.movedOutOn } : {}),
+          ...(r.away ? { away: r.away } : {}),
+        })),
+      };
   }
 }
 

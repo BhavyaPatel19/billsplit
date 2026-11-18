@@ -2,10 +2,11 @@ import { and, asc, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { schema, type Db } from "@billsplit/db";
 import type { ExpenseInput, RecurringTemplate } from "@billsplit/contracts";
 import { recordActivity } from "./lib/activity.js";
-import { ApiError } from "./lib/errors.js";
+import { ApiError, badRequest } from "./lib/errors.js";
 import { writeVersion } from "./lib/expense-writes.js";
+import { householdSnapshot } from "./lib/household.js";
 import { compute, ParticipantResolver } from "./lib/ledger.js";
-import { occurrenceDate, todayUtc, type IsoDate } from "./lib/schedule.js";
+import { addDays, occurrenceDate, todayUtc, type IsoDate } from "./lib/schedule.js";
 import type { Logger } from "./logger.js";
 import type { Notifier } from "./notifications.js";
 
@@ -86,11 +87,9 @@ export class RecurringPoster {
       const s = due.schedule;
 
       const resolver = await ParticipantResolver.forGroup(this.db, s.groupId);
-      const body: ExpenseInput = {
-        ...resolveTemplate(s.template as RecurringTemplate, resolver),
-        spentOn: s.nextOn,
-      };
+      let body: ExpenseInput;
       try {
+        body = await this.bodyFor(s, resolver);
         compute(body, due.currency, resolver.active);
       } catch (err) {
         if (!(err instanceof ApiError)) throw err;
@@ -146,5 +145,31 @@ export class RecurringPoster {
     });
     if (activityId) this.notifier.activityRecorded(activityId);
     return outcome;
+  }
+
+  /**
+   * The expense for the schedule's next occurrence. A household item covers the days up to the
+   * following occurrence and takes the household as it is now: room weights, who moved in or
+   * out, and trips in that period.
+   */
+  private async bodyFor(s: ScheduleRow, resolver: ParticipantResolver): Promise<ExpenseInput> {
+    const template = resolveTemplate(s.template as RecurringTemplate, resolver);
+    const period = {
+      from: s.nextOn,
+      to: addDays(occurrenceDate(cadenceOf(s), s.nextOccurrence + 1), -1),
+    };
+    const items = await Promise.all(
+      template.items.map(async (item) => {
+        if (item.split.kind !== "household") return item;
+        const split = await householdSnapshot(this.db, s.groupId, resolver, {
+          basis: item.split.basis,
+          period,
+          include: item.split.residents.map((r) => r.participantId),
+        });
+        if (!split) throw badRequest(`Nobody lived there from ${period.from} to ${period.to}`);
+        return { ...item, split };
+      }),
+    );
+    return { ...template, items, spentOn: s.nextOn };
   }
 }

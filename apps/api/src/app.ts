@@ -21,6 +21,7 @@ import { sessionMiddleware, type SessionVariables } from "./middleware/session.j
 import { activityRoutes } from "./routes/activity.js";
 import { claimRoutes } from "./routes/claims.js";
 import { healthRoutes } from "./routes/health.js";
+import { householdRoutes } from "./routes/household.js";
 import { expenseRoutes } from "./routes/expenses.js";
 import { groupRoutes } from "./routes/groups.js";
 import { inviteRoutes } from "./routes/invites.js";
@@ -106,6 +107,7 @@ export function createApp({
   app.route("/", groupRoutes(db, env, claimEvents));
   app.route("/", expenseRoutes(db, notifier));
   app.route("/", recurringRoutes(db, recurring));
+  app.route("/", householdRoutes(db));
   app.route("/", inviteRoutes(db));
   app.route("/", activityRoutes(db));
   app.route("/", receiptRoutes(db, storage, jobs, env, claimEvents));

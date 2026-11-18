@@ -5,6 +5,7 @@ import type {
   Receipt,
   ReceiptClaim,
   SplitInput,
+  HouseholdSplitInput,
 } from "@billsplit/contracts";
 import {
   cents,
@@ -18,7 +19,8 @@ import {
 
 /** How one amount is divided in the form. Values are what the user typed. */
 export interface SplitDraft {
-  kind: SplitInput["kind"];
+  /** Household (prorated) splits come from the household settings, not from typed values. */
+  kind: Exclude<SplitInput["kind"], "household">;
   people: string[];
   /** Per-person number for exact (money), percent, or shares. */
   values: Record<string, string>;
@@ -59,6 +61,22 @@ function money(value: string, digits: number, label: string): number {
 }
 
 class DraftError extends Error {}
+
+/** Contract shape -> engine shape (optional fields left out rather than set to undefined). */
+export function toEngineHousehold(split: HouseholdSplitInput): Split {
+  return {
+    kind: "household",
+    basis: split.basis,
+    period: split.period,
+    residents: split.residents.map((r) => ({
+      participantId: r.participantId,
+      ...(r.weight !== undefined ? { weight: r.weight } : {}),
+      ...(r.movedInOn ? { movedInOn: r.movedInOn } : {}),
+      ...(r.movedOutOn ? { movedOutOn: r.movedOutOn } : {}),
+      ...(r.away ? { away: r.away } : {}),
+    })),
+  };
+}
 
 function toSplit(draft: SplitDraft, digits: number, label: string): SplitInput {
   if (draft.people.length === 0) throw new DraftError(`${label}: pick at least one person`);
@@ -106,6 +124,7 @@ function toEngineSplit(split: SplitInput): Split {
       })),
     };
   }
+  if (split.kind === "household") return toEngineHousehold(split);
   return split;
 }
 

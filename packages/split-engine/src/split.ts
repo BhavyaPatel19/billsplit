@@ -1,5 +1,6 @@
 import { allocate } from "./allocate.js";
 import { SplitError } from "./errors.js";
+import { prorate, type DateRange, type ProrationBasis, type Resident } from "./household.js";
 import { cents, sumCents, type Cents } from "./money.js";
 
 /** Identifier of a participant; opaque to the engine. */
@@ -32,8 +33,19 @@ export interface SharesSplit {
   shares: Array<{ participantId: ParticipantId; shares: number }>;
 }
 
+/**
+ * Split a household bill for one period by room weight and days there (see {@link prorate}).
+ * The residents are a snapshot, so the result never changes when the household does.
+ */
+export interface HouseholdSplit {
+  kind: "household";
+  basis: ProrationBasis;
+  period: DateRange;
+  residents: Resident[];
+}
+
 /** Any of the supported ways to divide one amount between participants. */
-export type Split = EqualSplit | ExactSplit | PercentSplit | SharesSplit;
+export type Split = EqualSplit | ExactSplit | PercentSplit | SharesSplit | HouseholdSplit;
 
 /** Tolerance when checking that percentages add up to 100. */
 export const PERCENT_TOLERANCE = 1e-6;
@@ -59,6 +71,9 @@ export function splitParticipants(split: Split): ParticipantId[] {
       break;
     case "shares":
       ids = split.shares.map((s) => s.participantId);
+      break;
+    case "household":
+      ids = split.residents.map((r) => r.participantId);
       break;
   }
   return assertUniqueParticipants(ids);
@@ -158,6 +173,10 @@ function sharesFor(total: Cents, split: Split): Cents[] {
         }
       }
       return allocate(total, counts);
+    }
+    case "household": {
+      const { shares } = prorate(total, split.period, split.residents, split.basis);
+      return split.residents.map((r) => shares[r.participantId]!);
     }
   }
 }

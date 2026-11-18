@@ -6,6 +6,35 @@ export const CentsSchema = z.int().describe("Amount in minor units (cents)");
 
 const ParticipantId = z.uuid();
 
+export const DateRangeSchema = z
+  .object({ from: z.iso.date(), to: z.iso.date() })
+  .refine((r) => r.from <= r.to, { message: "The range ends before it starts" });
+
+/** One person in a household split: their room weight, move dates and days away. */
+export const ResidentSchema = z.object({
+  participantId: ParticipantId,
+  /** Room weight for rent (square feet, or relative such as 1.2). Defaults to 1. */
+  weight: z.number().min(0).max(1_000_000).optional(),
+  movedInOn: z.iso.date().optional(),
+  movedOutOn: z.iso.date().optional(),
+  /** Days away; only reduce `usage` bills. */
+  away: z.array(DateRangeSchema).max(50).optional(),
+});
+export type ResidentInput = z.infer<typeof ResidentSchema>;
+
+export const ProrationBasisSchema = z.enum(["rent", "usage"]);
+export type ProrationBasis = z.infer<typeof ProrationBasisSchema>;
+
+export const HouseholdSplitSchema = z.object({
+  kind: z.literal("household"),
+  /** rent: room weight × days living there. usage: days present (trips come off). */
+  basis: ProrationBasisSchema,
+  /** The days the bill covers, both ends included. */
+  period: DateRangeSchema,
+  residents: z.array(ResidentSchema).min(1).max(100),
+});
+export type HouseholdSplitInput = z.infer<typeof HouseholdSplitSchema>;
+
 export const SplitSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("equal"), participantIds: z.array(ParticipantId).min(1).max(100) }),
   z.object({
@@ -29,6 +58,7 @@ export const SplitSchema = z.discriminatedUnion("kind", [
       .min(1)
       .max(100),
   }),
+  HouseholdSplitSchema,
 ]);
 export type SplitInput = z.infer<typeof SplitSchema>;
 

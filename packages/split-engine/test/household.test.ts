@@ -321,3 +321,31 @@ describe("prorate: properties", () => {
     );
   });
 });
+
+describe("household split inside an expense", () => {
+  it("prorates an item and shares tax in proportion", async () => {
+    const { computeExpense } = await import("../src/index.js");
+    const out = computeExpense({
+      currency: "USD",
+      payerId: "ana",
+      participants: ["ana", "bo"],
+      items: [
+        {
+          id: "rent",
+          name: "Rent",
+          amount: cents(300_000),
+          quantity: 1,
+          split: {
+            kind: "household",
+            basis: "rent",
+            period: NOV,
+            residents: [{ participantId: "ana" }, { participantId: "bo", movedInOn: "2026-11-16" }],
+          },
+        },
+      ],
+      adjustments: [{ kind: "fee", amount: cents(300), allocation: "proportional" }],
+    });
+    expect(out.totals).toEqual({ ana: 200_200, bo: 100_100 });
+    expect(out.total).toBe(300_300);
+  });
+});
