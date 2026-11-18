@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Link2, Trash2 } from "lucide-react";
+import { ArrowLeft, FileText, Link2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -70,6 +70,11 @@ export function GroupHeader({ group }: { group: GroupDetail }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link href={`/groups/${group.id}/report`}>
+            <Button variant="ghost">
+              <FileText className="size-4" aria-hidden /> Report
+            </Button>
+          </Link>
           <Button variant="secondary" loading={busy === "invite"} onClick={createInvite}>
             <Link2 className="size-4" aria-hidden /> Invite link
           </Button>

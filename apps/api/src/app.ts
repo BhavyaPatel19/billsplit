@@ -30,6 +30,7 @@ import { unsubscribeRoutes } from "./routes/unsubscribe.js";
 import { metaRoutes } from "./routes/meta.js";
 import { pantryRoutes } from "./routes/pantry.js";
 import { receiptRoutes } from "./routes/receipts.js";
+import { reportRoutes } from "./routes/report.js";
 import { recurringRoutes } from "./routes/recurring.js";
 
 export interface AppDeps {
@@ -110,6 +111,7 @@ export function createApp({
   app.route("/", recurringRoutes(db, recurring));
   app.route("/", householdRoutes(db));
   app.route("/", pantryRoutes(db, notifier));
+  app.route("/", reportRoutes(db));
   app.route("/", inviteRoutes(db));
   app.route("/", activityRoutes(db));
   app.route("/", receiptRoutes(db, storage, jobs, env, claimEvents));

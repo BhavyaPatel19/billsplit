@@ -10,7 +10,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <header className="border-b border-zinc-200 bg-white print:hidden dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
           <Link href="/dashboard" className="font-semibold tracking-tight">
             BillSplit
@@ -29,7 +29,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </nav>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-4xl px-4 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-4xl px-4 py-8 print:max-w-none print:py-0">
+        {children}
+      </main>
     </div>
   );
 }

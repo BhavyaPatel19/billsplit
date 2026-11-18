@@ -9,3 +9,4 @@ export * from "./meta.js";
 export * from "./pantry.js";
 export * from "./receipts.js";
 export * from "./recurring.js";
+export * from "./report.js";

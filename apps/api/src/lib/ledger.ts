@@ -267,8 +267,8 @@ export function toDetail(
   };
 }
 
-/** Load the current version and shares for a set of live expenses. */
-export async function loadExpenses(db: Db, groupId: string, expenseId?: string) {
+/** Load the current version and shares for a set of live expenses (newest first, capped). */
+export async function loadExpenses(db: Db, groupId: string, expenseId?: string, limit = 500) {
   if (expenseId !== undefined && !isUuid(expenseId)) return [];
   const rows = await db
     .select({ expense: schema.expenses, version: schema.expenseVersions })
@@ -285,7 +285,7 @@ export async function loadExpenses(db: Db, groupId: string, expenseId?: string) 
       ),
     )
     .orderBy(sql`${schema.expenseVersions.spentOn} desc`, sql`${schema.expenses.createdAt} desc`)
-    .limit(500);
+    .limit(limit);
 
   const versionIds = rows.map((r) => r.version.id);
   const shareRows = versionIds.length
