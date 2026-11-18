@@ -17,6 +17,7 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { groups, participants } from "./groups.js";
+import { recurringExpenses } from "./recurring.js";
 
 const createdAt = timestamp({ withTimezone: true }).notNull().defaultNow();
 /** Money in minor units. JS numbers are exact up to 2^53, far above any bill. */
@@ -39,11 +40,17 @@ export const expenses = pgTable(
     createdBy: uuid().references(() => participants.id, { onDelete: "set null" }),
     /** Client-supplied Idempotency-Key, so a retried POST never creates a duplicate. */
     idempotencyKey: text(),
+    /** Set when a recurring schedule posted it; with the occurrence number, unique. */
+    recurringExpenseId: uuid().references(() => recurringExpenses.id, { onDelete: "set null" }),
+    recurringOccurrence: integer(),
     createdAt,
     deletedAt: timestamp({ withTimezone: true }),
   },
   (t) => [
     index("expenses_group_id_idx").on(t.groupId),
+    uniqueIndex("expenses_recurring_occurrence_uidx")
+      .on(t.recurringExpenseId, t.recurringOccurrence)
+      .where(sql`${t.recurringExpenseId} is not null`),
     uniqueIndex("expenses_group_idempotency_uidx")
       .on(t.groupId, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} is not null`),

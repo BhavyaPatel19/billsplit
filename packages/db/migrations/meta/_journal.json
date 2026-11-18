@@ -57,6 +57,13 @@
       "when": 1794902967459,
       "tag": "0007_notification_prefs",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794987585274,
+      "tag": "0008_recurring_expenses",
+      "breakpoints": true
     }
   ]
 }

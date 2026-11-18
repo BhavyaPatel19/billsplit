@@ -7,6 +7,7 @@ import { loadEnv } from "./env.js";
 import { createReceiptJobs } from "./jobs.js";
 import { createLogger } from "./logger.js";
 import { Notifier } from "./notifications.js";
+import { RecurringPoster } from "./recurring.js";
 import { createReceiptStorage } from "@billsplit/storage";
 
 const env = loadEnv();
@@ -27,7 +28,23 @@ const storage = env.RECEIPTS_BUCKET
   : null;
 const jobs = createReceiptJobs(env, logger);
 const notifier = new Notifier(dbHandle.db, mailer, env, logger);
-const app = createApp({ env, logger, db: dbHandle.db, auth, storage, jobs, notifier });
+const recurring = new RecurringPoster(dbHandle.db, notifier, logger);
+const app = createApp({ env, logger, db: dbHandle.db, auth, storage, jobs, notifier, recurring });
+
+// Recurring expenses: on start, then every 15 minutes. Postings are dated by their schedule, so
+// the run time only decides how soon after midnight UTC a bill appears.
+const postRecurring = () =>
+  recurring
+    .postDue()
+    .then((posted) => {
+      if (posted > 0) logger.info({ posted }, "recurring expenses posted");
+    })
+    .catch((err: unknown) => logger.error({ err }, "recurring run failed"));
+if (env.RECURRING_ENABLED) void postRecurring();
+const recurringTimer = env.RECURRING_ENABLED
+  ? setInterval(() => void postRecurring(), 900_000)
+  : null;
+recurringTimer?.unref();
 
 // Reminders: checked hourly; each person still gets at most one per REMINDER_INTERVAL_DAYS.
 const reminders = env.REMINDERS_ENABLED
@@ -59,6 +76,7 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
 function shutdown(signal: string) {
   logger.info({ signal }, "shutting down");
   if (reminders) clearInterval(reminders);
+  if (recurringTimer) clearInterval(recurringTimer);
   server.close((err) => {
     void notifier
       .idle()

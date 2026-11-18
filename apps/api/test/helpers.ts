@@ -8,6 +8,7 @@ import { InMemoryMailer } from "../src/email.js";
 import { InMemoryReceiptJobs } from "../src/jobs.js";
 import { loadEnv, type Env } from "../src/env.js";
 import { Notifier } from "../src/notifications.js";
+import { RecurringPoster } from "../src/recurring.js";
 
 export interface TestContext {
   app: App;
@@ -16,6 +17,7 @@ export interface TestContext {
   storage: InMemoryReceiptStorage;
   jobs: InMemoryReceiptJobs;
   notifier: Notifier;
+  recurring: RecurringPoster;
   db: DbHandle;
   stop(): Promise<void>;
 }
@@ -36,6 +38,7 @@ export async function startTestContext(overrides: NodeJS.ProcessEnv = {}): Promi
     BETTER_AUTH_SECRET: "test-secret-test-secret-test-secret-test-secret",
     EMAIL_TRANSPORT: "log",
     REMINDERS_ENABLED: "false",
+    RECURRING_ENABLED: "false",
     ...overrides,
   });
   const logger = pino({ enabled: false });
@@ -45,7 +48,8 @@ export async function startTestContext(overrides: NodeJS.ProcessEnv = {}): Promi
   const storage = new InMemoryReceiptStorage();
   const jobs = new InMemoryReceiptJobs();
   const notifier = new Notifier(db.db, mailer, env, logger);
-  const app = createApp({ env, logger, db: db.db, auth, storage, jobs, notifier });
+  const recurring = new RecurringPoster(db.db, notifier, logger);
+  const app = createApp({ env, logger, db: db.db, auth, storage, jobs, notifier, recurring });
 
   return {
     app,
@@ -54,6 +58,7 @@ export async function startTestContext(overrides: NodeJS.ProcessEnv = {}): Promi
     storage,
     jobs,
     notifier,
+    recurring,
     db,
     stop: async () => {
       await notifier.idle();

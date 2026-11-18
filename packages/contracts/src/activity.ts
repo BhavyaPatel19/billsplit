@@ -6,6 +6,8 @@ const ExpenseFacts = z.object({
   totalCents: CentsSchema,
   currency: z.string(),
   payerId: z.uuid(),
+  /** Set when a recurring schedule posted it rather than a person. */
+  recurringId: z.uuid().optional(),
 });
 const PaymentFacts = z.object({
   fromId: z.uuid(),

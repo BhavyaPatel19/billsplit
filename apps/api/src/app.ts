@@ -16,6 +16,7 @@ import type { Env } from "./env.js";
 import type { ReceiptJobs } from "./jobs.js";
 import type { Logger } from "./logger.js";
 import type { Notifier } from "./notifications.js";
+import type { RecurringPoster } from "./recurring.js";
 import { sessionMiddleware, type SessionVariables } from "./middleware/session.js";
 import { activityRoutes } from "./routes/activity.js";
 import { claimRoutes } from "./routes/claims.js";
@@ -27,6 +28,7 @@ import { meRoutes } from "./routes/me.js";
 import { unsubscribeRoutes } from "./routes/unsubscribe.js";
 import { metaRoutes } from "./routes/meta.js";
 import { receiptRoutes } from "./routes/receipts.js";
+import { recurringRoutes } from "./routes/recurring.js";
 
 export interface AppDeps {
   env: Env;
@@ -37,6 +39,7 @@ export interface AppDeps {
   storage: ReceiptStorage | null;
   jobs: ReceiptJobs;
   notifier: Notifier;
+  recurring: RecurringPoster;
   startedAt?: Date;
 }
 
@@ -50,6 +53,7 @@ export function createApp({
   storage,
   jobs,
   notifier,
+  recurring,
   startedAt = new Date(),
 }: AppDeps) {
   // Everything lives under /api so the reverse proxy and Next.js rewrites forward the prefix as-is.
@@ -101,6 +105,7 @@ export function createApp({
   const claimEvents = new ClaimEvents();
   app.route("/", groupRoutes(db, env, claimEvents));
   app.route("/", expenseRoutes(db, notifier));
+  app.route("/", recurringRoutes(db, recurring));
   app.route("/", inviteRoutes(db));
   app.route("/", activityRoutes(db));
   app.route("/", receiptRoutes(db, storage, jobs, env, claimEvents));

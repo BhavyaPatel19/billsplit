@@ -208,6 +208,7 @@ it("answers 503 when no bucket is configured", async () => {
     storage: null,
     jobs: ctx.jobs,
     notifier: ctx.notifier,
+    recurring: ctx.recurring,
   });
   const res = await request(app, `/api/groups/${groupId}/receipts`, {
     cookie: ana,
@@ -229,6 +230,7 @@ function appWith(overrides: Partial<TestContext["env"]>): App {
     storage: ctx.storage,
     jobs: ctx.jobs,
     notifier: ctx.notifier,
+    recurring: ctx.recurring,
   });
 }
 

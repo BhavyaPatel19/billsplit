@@ -68,6 +68,11 @@ const EnvSchema = z
       .enum(["true", "false"])
       .default("true")
       .transform((v) => v === "true"),
+    /** Post recurring expenses on a schedule. Off: tests post them by hand. */
+    RECURRING_ENABLED: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((v) => v === "true"),
     /** Days between reminder emails to the same person. */
     REMINDER_INTERVAL_DAYS: z.coerce.number().int().positive().default(7),
     /** Debts below this many cents are not worth a reminder. */

@@ -108,8 +108,11 @@ export class Notifier {
     const actorId = row.activity.actorParticipantId
       ? resolver.resolve(row.activity.actorParticipantId)
       : null;
+    // The actor already knows, unless a schedule posted it on their behalf.
+    const automatic =
+      payload.data.kind === "expense.added" && Boolean(payload.data.data.recurringId);
     const involved = [...new Set(row.activity.involved.map((id) => resolver.resolve(id)))].filter(
-      (id) => id !== actorId,
+      (id) => automatic || id !== actorId,
     );
     if (involved.length === 0) return;
 
@@ -174,12 +177,18 @@ export class Notifier {
       } else if (p.kind === "expense.added" || p.kind === "expense.edited") {
         const verb = p.kind === "expense.added" ? "added" : "edited";
         const share = owedBy.get(me) ?? 0;
-        line =
-          `${actor} ${verb} "${p.data.description}" (${money(p.data.totalCents, p.data.currency)}). ` +
-          (share > 0
+        const total = money(p.data.totalCents, p.data.currency);
+        const yours =
+          share > 0
             ? `Your share is ${money(share, p.data.currency)}.`
-            : "You are no longer on it.");
-        subject = `${actor} ${verb} ${p.data.description} in ${row.group.name}`;
+            : "You are no longer on it.";
+        if (p.kind === "expense.added" && p.data.recurringId) {
+          line = `The recurring expense "${p.data.description}" (${total}) was posted. ${yours}`;
+          subject = `${p.data.description} posted in ${row.group.name}`;
+        } else {
+          line = `${actor} ${verb} "${p.data.description}" (${total}). ${yours}`;
+          subject = `${actor} ${verb} ${p.data.description} in ${row.group.name}`;
+        }
       } else {
         continue;
       }

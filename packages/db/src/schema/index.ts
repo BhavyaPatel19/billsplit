@@ -6,3 +6,4 @@ export * from "./expenses.js";
 export * from "./groups.js";
 export * from "./notifications.js";
 export * from "./receipts.js";
+export * from "./recurring.js";

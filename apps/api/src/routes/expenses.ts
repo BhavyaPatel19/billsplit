@@ -10,16 +10,15 @@ import {
   ExpenseListResponseSchema,
   SettlementListResponseSchema,
   SettlementSchema,
-  type ExpenseInput,
   type Settlement,
 } from "@billsplit/contracts";
 import { recordActivity } from "../lib/activity.js";
+import { writeVersion } from "../lib/expense-writes.js";
 import type { Notifier } from "../notifications.js";
 import { requireMembership } from "../lib/authorize.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { isUuid } from "../lib/ids.js";
 import {
-  compute,
   groupBalances,
   isUniqueViolation,
   loadExpenses,
@@ -44,8 +43,6 @@ function idempotencyKey(c: Ctx): string | null {
   return key;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
-
 export function expenseRoutes(db: Db, notifier: Notifier) {
   const router = new Hono<{ Variables: SessionVariables }>();
   router.use("/groups/:id/expenses", requireSession);
@@ -59,48 +56,6 @@ export function expenseRoutes(db: Db, notifier: Notifier) {
     if (!row) throw notFound("Expense not found");
     const resolver = await ParticipantResolver.forGroup(db, groupId);
     return toDetail(row.expense, row.version, row.shares, resolver);
-  };
-
-  /** Insert a new version (1 for a new expense) with its shares and make it current. */
-  const writeVersion = async (
-    tx: Parameters<Parameters<Db["transaction"]>[0]>[0],
-    expenseId: string,
-    version: number,
-    body: ExpenseInput,
-    currency: string,
-    meId: string,
-    active: ReadonlySet<string>,
-  ) => {
-    const stored: ExpenseInput = { ...body, spentOn: body.spentOn ?? today() };
-    const { breakdown, shares } = compute(stored, currency, active);
-    const [row] = await tx
-      .insert(schema.expenseVersions)
-      .values({
-        expenseId,
-        version,
-        description: stored.description,
-        currency,
-        spentOn: stored.spentOn!,
-        payerId: stored.payerId,
-        totalCents: breakdown.total,
-        input: stored,
-        createdBy: meId,
-      })
-      .returning({ id: schema.expenseVersions.id });
-    await tx.insert(schema.expenseShares).values(shares.map((s) => ({ versionId: row!.id, ...s })));
-    await tx
-      .update(schema.expenses)
-      .set({ currentVersionId: row!.id })
-      .where(eq(schema.expenses.id, expenseId));
-    return {
-      facts: {
-        description: stored.description,
-        totalCents: breakdown.total,
-        currency,
-        payerId: stored.payerId,
-      },
-      involved: [stored.payerId, ...shares.map((s) => s.participantId)],
-    };
   };
 
   // ---- expenses ----------------------------------------------------------------------------
@@ -170,15 +125,14 @@ export function expenseRoutes(db: Db, notifier: Notifier) {
             .insert(schema.expenses)
             .values({ groupId: group.id, createdBy: me.id, idempotencyKey: key })
             .returning({ id: schema.expenses.id });
-          const written = await writeVersion(
-            tx,
-            expense!.id,
-            1,
+          const written = await writeVersion(tx, {
+            expenseId: expense!.id,
+            version: 1,
             body,
-            group.currency,
-            me.id,
-            resolver.active,
-          );
+            currency: group.currency,
+            actorId: me.id,
+            active: resolver.active,
+          });
           const activityId = await recordActivity(tx, {
             groupId: group.id,
             actorParticipantId: me.id,
@@ -235,15 +189,14 @@ export function expenseRoutes(db: Db, notifier: Notifier) {
       if (!current) throw notFound("Expense not found");
       const resolver = await ParticipantResolver.forGroup(db, group.id);
       const activityId = await db.transaction(async (tx) => {
-        const written = await writeVersion(
-          tx,
-          current.expense.id,
-          current.version.version + 1,
-          c.req.valid("json"),
-          current.version.currency,
-          me.id,
-          resolver.active,
-        );
+        const written = await writeVersion(tx, {
+          expenseId: current.expense.id,
+          version: current.version.version + 1,
+          body: c.req.valid("json"),
+          currency: current.version.currency,
+          actorId: me.id,
+          active: resolver.active,
+        });
         // Everyone on either version hears about it: someone taken off the bill cares too.
         return recordActivity(tx, {
           groupId: group.id,
