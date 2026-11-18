@@ -32,7 +32,9 @@ export type SplitErrorCode =
   /** The same item id appears more than once in an expense. */
   | "DUPLICATE_ITEM"
   /** Net balances do not sum to zero, so no set of transfers can settle them. */
-  | "UNBALANCED";
+  | "UNBALANCED"
+  /** A date is malformed, or a date range ends before it starts. */
+  | "INVALID_DATE";
 
 /**
  * Error thrown for every rejected input in `@billsplit/split-engine`.

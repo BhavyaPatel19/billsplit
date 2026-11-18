@@ -54,3 +54,12 @@ export {
   simplifyDebts,
   applyTransfers,
 } from "./ledger.js";
+export {
+  type IsoDate,
+  type DateRange,
+  type Resident,
+  type ProrationBasis,
+  type Proration,
+  prorate,
+  daysInRange,
+} from "./household.js";
