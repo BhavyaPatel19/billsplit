@@ -28,6 +28,7 @@ import { inviteRoutes } from "./routes/invites.js";
 import { meRoutes } from "./routes/me.js";
 import { unsubscribeRoutes } from "./routes/unsubscribe.js";
 import { metaRoutes } from "./routes/meta.js";
+import { pantryRoutes } from "./routes/pantry.js";
 import { receiptRoutes } from "./routes/receipts.js";
 import { recurringRoutes } from "./routes/recurring.js";
 
@@ -108,6 +109,7 @@ export function createApp({
   app.route("/", expenseRoutes(db, notifier));
   app.route("/", recurringRoutes(db, recurring));
   app.route("/", householdRoutes(db));
+  app.route("/", pantryRoutes(db, notifier));
   app.route("/", inviteRoutes(db));
   app.route("/", activityRoutes(db));
   app.route("/", receiptRoutes(db, storage, jobs, env, claimEvents));

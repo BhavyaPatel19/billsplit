@@ -71,6 +71,13 @@
       "when": 1794988565142,
       "tag": "0009_household",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794988956859,
+      "tag": "0010_pantry",
+      "breakpoints": true
     }
   ]
 }
