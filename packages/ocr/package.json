@@ -21,7 +21,7 @@
     "eval": "tsx eval/run.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "1.7.0",
+    "@anthropic-ai/sdk": "1.8.0",
     "@billsplit/contracts": "workspace:*",
     "zod": "4.6.7"
   },
